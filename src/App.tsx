@@ -196,8 +196,29 @@ function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
     Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
     Math.sin(dLon / 2) * Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
+  return R * c;}
+
+const sortRefs = (aRef: string, bRef: string): number => {
+  const regex = /^([A-Za-z]*)(\d+)?/;
+  const matchA = aRef.match(regex);
+  const matchB = bRef.match(regex);
+  
+  const prefixA = matchA ? matchA[1] : '';
+  const prefixB = matchB ? matchB[1] : '';
+  
+  if (prefixA !== prefixB) {
+    return prefixA.localeCompare(prefixB);
+  }
+  
+  const numA = matchA && matchA[2] ? parseInt(matchA[2], 10) : -1;
+  const numB = matchB && matchB[2] ? parseInt(matchB[2], 10) : -1;
+  
+  if (numA !== -1 && numB !== -1) {
+    return numA - numB;
+  }
+  
+  return aRef.localeCompare(bRef);
+};
 
 const Icons = {
   Feed: (props: React.SVGProps<SVGSVGElement>) => (
@@ -1617,7 +1638,7 @@ export default function App() {
   const [loadedBusLines, setLoadedBusLines] = useState<LineRoute[]>([]);
   const burgosBusLines = loadedBusLines; // Keep reference to avoid breaking old variables
   const uniqueLineRefs = useMemo(() => {
-    return Array.from(new Set(burgosBusLines.map(l => l.ref))).sort();
+    return Array.from(new Set(burgosBusLines.map(l => l.ref))).sort(sortRefs);
   }, [burgosBusLines]);
   const [selectedLineId, setSelectedLineId] = useState<string>('');
   
@@ -1859,7 +1880,16 @@ export default function App() {
   const [nearbyStops, setNearbyStops] = useState<{ stop: Stop; distanceKm: number; lineRefs: string[] }[]>([]);
 
   // Simulation states
-  const [activeCity, setActiveCity] = useState('burgos');
+  const [activeCity, setActiveCity] = useState<string>(() => {
+    return localStorage.getItem('metromile-active-city') || '';
+  });
+  
+  useEffect(() => {
+    if (activeCity) {
+      localStorage.setItem('metromile-active-city', activeCity);
+    }
+  }, [activeCity]);
+
   const [citiesList, setCitiesList] = useState<{ id: string; name: string; country: string; center: [number, number]; zoom: number; transports: string[] }[]>([]);
   const [activeTransport, setActiveTransport] = useState('bus');
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
@@ -2110,52 +2140,43 @@ export default function App() {
     const steps = [
       {
         id: 1,
-        title: lang === 'es' ? '¡Bienvenido/a a MetroMile!' : lang === 'fr' ? 'Bienvenue sur MetroMile !' : lang === 'de' ? 'Willkommen bei MetroMile!' : lang === 'it' ? 'Benvenuto su MetroMile!' : lang === 'pl' ? 'Witaj w MetroMile!' : lang === 'cs' ? 'Vítejte v MetroMile!' : 'Welcome to MetroMile!',
-        emoji: '⚡',
+        title: lang === 'es' ? '1. Muro de Actividades' : '1. Activity Feed',
+        emoji: '📱',
         tab: 'feed' as const,
         text: lang === 'es' 
-          ? 'MetroMile es la red social deportiva de corredores urbanos. Tu misión es completar las líneas de transporte público corriendo o caminando por su trazado.'
-          : 'MetroMile is the sports social network for urban runners. Complete transit lines by running or walking along their actual stop-to-stop routes.'
+          ? 'Aquí puedes ver el feed social de la comunidad, chatear con el Entrenador IA o usar el simulador para registrar carreras.'
+          : 'Here you can see the community social feed, chat with the AI Coach, or use the simulator to record runs.'
       },
       {
         id: 2,
-        title: lang === 'es' ? 'Muro de Actividades' : lang === 'fr' ? 'Fil d\'activités' : lang === 'de' ? 'Aktivitäts-Feed' : lang === 'it' ? 'Bacheca Attività' : lang === 'pl' ? 'Tablica aktywności' : lang === 'cs' ? 'Zeď aktivit' : 'Activity Feed',
-        emoji: '📱',
-        tab: 'feed' as const,
-        text: lang === 'es'
-          ? 'En el Muro puedes ver actividades de la comunidad, chatear con el IA Coach, o usar el GPS en vivo y simulador para registrar recorridos.'
-          : 'On the Activity Feed you can see community posts, chat with the AI Coach, use the Live GPS or simulate a run.'
-      },
-      {
-        id: 3,
-        title: lang === 'es' ? 'Mapa y Descargas GPX' : lang === 'fr' ? 'Carte & Téléchargements GPX' : lang === 'de' ? 'Karte & GPX-Downloads' : lang === 'it' ? 'Mappa e Download GPX' : lang === 'pl' ? 'Mapa i pobieranie GPX' : lang === 'cs' ? 'Mapa a stahování GPX' : 'Map & GPX Downloads',
+        title: lang === 'es' ? '2. Mapa de Rutas' : '2. Route Map',
         emoji: '🗺️',
         tab: 'map' as const,
         text: lang === 'es'
-          ? 'Explora las líneas de metro y bus en el mapa, consulta las paradas y descarga el track GPX para seguirlo en la superficie con tu reloj o móvil.'
-          : 'Explore metro and bus routes on the map, view the list of stops, and download GPX tracks to follow on the surface with your sports watch.'
+          ? 'Explora las líneas de metro y autobús de la ciudad, consulta sus estaciones y descarga el archivo GPX para seguirlo en tu reloj o móvil.'
+          : 'Explore metro and bus routes in the city, view their stations, and download GPX files to follow on your sports watch or phone.'
+      },
+      {
+        id: 3,
+        title: lang === 'es' ? '3. Retos y Buscador' : '3. Challenges & Search',
+        emoji: '🔍',
+        tab: 'search' as const,
+        text: lang === 'es'
+          ? 'Busca líneas en otras ciudades del mundo, viaja virtualmente a destinos icónicos como Tokio o París, y completa desafíos para tu pasaporte.'
+          : 'Search for transit lines in other cities around the world, travel virtually to iconic locations, and complete challenges for your passport.'
       },
       {
         id: 4,
-        title: lang === 'es' ? 'Retos Virtuales' : lang === 'fr' ? 'Défis Virtuels' : lang === 'de' ? 'Virtuelle Challenges' : lang === 'it' ? 'Sfide Virtuali' : lang === 'pl' ? 'Wyzwania wirtualne' : lang === 'cs' ? 'Virtuální výzvy' : 'Virtual Challenges',
-        emoji: '🗺️',
-        tab: 'search' as const,
-        text: lang === 'es'
-          ? 'Participa en Retos Virtuales viajando a líneas icónicas de otras ciudades (como Tokio, París o Nueva York) y acumula kilómetros en tu pasaporte.'
-          : 'Take on Virtual Challenges by running iconic routes in other cities (such as Tokyo, Paris, or New York) to collect passport stamps.'
-      },
-      {
-        id: 5,
-        title: lang === 'es' ? 'Tu Perfil y Estadísticas' : lang === 'fr' ? 'Profil et Statistiques' : lang === 'de' ? 'Profil und Statistiken' : lang === 'it' ? 'Profilo e Statistiche' : lang === 'pl' ? 'Profil i Statystyki' : lang === 'cs' ? 'Profil a Statistiky' : 'Your Profile & Stats',
+        title: lang === 'es' ? '4. Tu Perfil y Estadísticas' : '4. Your Profile & Stats',
         emoji: '🏆',
         tab: 'profile' as const,
         text: lang === 'es'
           ? (stravaConfig.connected 
-              ? 'Sube de nivel, consulta tu pasaporte y estadísticas. ¡Tu cuenta de Strava ya está vinculada e importará carreras automáticamente!'
-              : 'Sube de nivel, consulta tu pasaporte y estadísticas. ¡Vincula tu cuenta de Strava aquí mismo para importar tus carreras automáticamente!')
+              ? 'Consulta tu nivel de prestigio, tus estadísticas globales de carrera y vincula tu cuenta de Strava para registrar actividades automáticamente.'
+              : 'Consulta tu nivel de prestigio, tus estadísticas globales de carrera y vincula tu cuenta de Strava aquí mismo para registrar carreras automáticamente.')
           : (stravaConfig.connected
-              ? 'Level up, view your passport stamps and stats. Your Strava account is linked and will automatically sync and validate runs!'
-              : 'Level up, view your passport stamps and stats. Link your Strava account here to import and validate your runs automatically!')
+              ? 'Check your prestige level, view your running stats, and link your Strava account to import and validate your runs automatically!'
+              : 'Check your prestige level, view your running stats, and link your Strava account here to import your runs automatically!')
       }
     ];
     return steps;
@@ -2561,6 +2582,7 @@ export default function App() {
 
   // Dynamic City Route Loader with Stop Name Sanitizer & Legacy Fallback
   useEffect(() => {
+    if (!activeCity) return;
     const loadCityData = async () => {
       try {
         let data: LineRoute[] = [];
@@ -2636,7 +2658,7 @@ export default function App() {
 
   // Load selected line details (coordinates and stops) on demand
   useEffect(() => {
-    if (!selectedLineId) return;
+    if (!selectedLineId || !activeCity) return;
     
     const line = loadedBusLines.find(l => l.id === selectedLineId);
     if (line && (!line.coords || line.coords.length === 0 || !line.stops || line.stops.length === 0)) {
@@ -3300,7 +3322,7 @@ export default function App() {
       grouped[line.ref].push(line);
     });
 
-    return Object.entries(grouped).map(([ref, routes]) => {
+    const list = Object.entries(grouped).map(([ref, routes]) => {
       const primary = routes[0];
       const avgDistance = routes.reduce((sum, r) => sum + r.distanceKm, 0) / routes.length;
       const avgStops = Math.round(routes.reduce((sum, r) => sum + r.stopsCount, 0) / routes.length);
@@ -3320,7 +3342,7 @@ export default function App() {
         id: primary.id,
         ref: ref,
         name: mergedName,
-        description: `Línea ${ref} de Burgos. Sincroniza actividades para completarla.`,
+        description: `Línea ${ref} de la ciudad. Sincroniza actividades para completarla.`,
         distanceKm: avgDistance,
         stopsCount: avgStops,
         elevationGain: primary.elevationGain, // Keep for feed, but hide in listing
@@ -3329,6 +3351,7 @@ export default function App() {
         subRoutes: routes
       };
     });
+    return list.sort((a, b) => sortRefs(a.ref, b.ref));
   }, [burgosBusLines]);
 
   const [selectedDirection, setSelectedDirection] = useState<number>(0);
@@ -4111,7 +4134,7 @@ export default function App() {
       .map(item => ({
         stop: item.stop,
         distanceKm: item.distanceKm,
-        lineRefs: Array.from(item.lineRefs).sort()
+        lineRefs: Array.from(item.lineRefs).sort(sortRefs)
       }))
       .sort((a, b) => a.distanceKm - b.distanceKm);
 
@@ -5079,34 +5102,103 @@ ${segments.join('\n')}
         </div>
  
         {/* Navigation Tabs (Simplified to 4 options since lines tab is unified inside map) */}
-        <nav className="header-nav" style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+        <nav className="header-nav" style={{ display: 'flex', gap: '8px', marginTop: '4px', zIndex: tutorialStep !== null ? 999999 : 'auto', position: 'relative' }}>
+          <style>{`
+            @keyframes tutorialBounce {
+              0%, 100% { transform: translate(-50%, 0); }
+              50% { transform: translate(-50%, -6px); }
+            }
+            .tutorial-arrow-bounce {
+              animation: tutorialBounce 1s infinite ease-in-out;
+            }
+          `}</style>
           <button 
             className={`nav-tab-btn ${activeTab === 'feed' ? 'active' : ''}`}
-            onClick={() => setActiveTab('feed')}
-            style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+            onClick={() => {
+              if (tutorialStep === null) setActiveTab('feed');
+            }}
+            style={{ 
+              flex: 1, 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              gap: '6px',
+              position: 'relative',
+              zIndex: (tutorialStep !== null && getTutorialSteps()[tutorialStep - 1]?.tab === 'feed') ? 999999 : 'auto',
+              boxShadow: (tutorialStep !== null && getTutorialSteps()[tutorialStep - 1]?.tab === 'feed') ? '0 0 15px var(--brand-orange)' : 'none',
+              border: (tutorialStep !== null && getTutorialSteps()[tutorialStep - 1]?.tab === 'feed') ? '1.5px solid var(--brand-orange)' : ''
+            }}
           >
             <Icons.Feed /> Feed Social
+            {tutorialStep !== null && getTutorialSteps()[tutorialStep - 1]?.tab === 'feed' && (
+              <div className="tutorial-arrow-bounce" style={{ position: 'absolute', bottom: '-28px', left: '50%', fontSize: '1.25rem', color: 'var(--brand-orange)', pointerEvents: 'none', zIndex: 1000000 }}>▲</div>
+            )}
           </button>
           <button 
             className={`nav-tab-btn ${activeTab === 'map' ? 'active' : ''}`}
-            onClick={() => setActiveTab('map')}
-            style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+            onClick={() => {
+              if (tutorialStep === null) setActiveTab('map');
+            }}
+            style={{ 
+              flex: 1, 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              gap: '6px',
+              position: 'relative',
+              zIndex: (tutorialStep !== null && getTutorialSteps()[tutorialStep - 1]?.tab === 'map') ? 999999 : 'auto',
+              boxShadow: (tutorialStep !== null && getTutorialSteps()[tutorialStep - 1]?.tab === 'map') ? '0 0 15px var(--brand-orange)' : 'none',
+              border: (tutorialStep !== null && getTutorialSteps()[tutorialStep - 1]?.tab === 'map') ? '1.5px solid var(--brand-orange)' : ''
+            }}
           >
             <Icons.Map /> Mapa y Líneas
+            {tutorialStep !== null && getTutorialSteps()[tutorialStep - 1]?.tab === 'map' && (
+              <div className="tutorial-arrow-bounce" style={{ position: 'absolute', bottom: '-28px', left: '50%', fontSize: '1.25rem', color: 'var(--brand-orange)', pointerEvents: 'none', zIndex: 1000000 }}>▲</div>
+            )}
           </button>
           <button 
             className={`nav-tab-btn ${activeTab === 'search' ? 'active' : ''}`}
-            onClick={() => setActiveTab('search')}
-            style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+            onClick={() => {
+              if (tutorialStep === null) setActiveTab('search');
+            }}
+            style={{ 
+              flex: 1, 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              gap: '6px',
+              position: 'relative',
+              zIndex: (tutorialStep !== null && getTutorialSteps()[tutorialStep - 1]?.tab === 'search') ? 999999 : 'auto',
+              boxShadow: (tutorialStep !== null && getTutorialSteps()[tutorialStep - 1]?.tab === 'search') ? '0 0 15px var(--brand-orange)' : 'none',
+              border: (tutorialStep !== null && getTutorialSteps()[tutorialStep - 1]?.tab === 'search') ? '1.5px solid var(--brand-orange)' : ''
+            }}
           >
             <Icons.Search /> Atletas
+            {tutorialStep !== null && getTutorialSteps()[tutorialStep - 1]?.tab === 'search' && (
+              <div className="tutorial-arrow-bounce" style={{ position: 'absolute', bottom: '-28px', left: '50%', fontSize: '1.25rem', color: 'var(--brand-orange)', pointerEvents: 'none', zIndex: 1000000 }}>▲</div>
+            )}
           </button>
           <button 
             className={`nav-tab-btn ${activeTab === 'profile' ? 'active' : ''}`}
-            onClick={() => setActiveTab('profile')}
-            style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+            onClick={() => {
+              if (tutorialStep === null) setActiveTab('profile');
+            }}
+            style={{ 
+              flex: 1, 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              gap: '6px',
+              position: 'relative',
+              zIndex: (tutorialStep !== null && getTutorialSteps()[tutorialStep - 1]?.tab === 'profile') ? 999999 : 'auto',
+              boxShadow: (tutorialStep !== null && getTutorialSteps()[tutorialStep - 1]?.tab === 'profile') ? '0 0 15px var(--brand-orange)' : 'none',
+              border: (tutorialStep !== null && getTutorialSteps()[tutorialStep - 1]?.tab === 'profile') ? '1.5px solid var(--brand-orange)' : ''
+            }}
           >
             <Icons.Profile /> Mi Perfil
+            {tutorialStep !== null && getTutorialSteps()[tutorialStep - 1]?.tab === 'profile' && (
+              <div className="tutorial-arrow-bounce" style={{ position: 'absolute', bottom: '-28px', left: '50%', fontSize: '1.25rem', color: 'var(--brand-orange)', pointerEvents: 'none', zIndex: 1000000 }}>▲</div>
+            )}
           </button>
         </nav>
       </header>
@@ -7734,6 +7826,145 @@ ${segments.join('\n')}
         </div>
       )}
 
+      {/* Onboarding Tutorial Blur Overlay */}
+      {tutorialStep !== null && (
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            background: 'rgba(15, 23, 42, 0.7)',
+            backdropFilter: 'blur(5px)',
+            zIndex: 999998,
+            pointerEvents: 'auto'
+          }}
+        />
+      )}
+      
+      {/* Onboarding City Selection Modal for New Users */}
+      {activeCity === '' && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100vw',
+          height: '100vh',
+          background: 'rgba(15, 23, 42, 0.85)',
+          backdropFilter: 'blur(10px)',
+          zIndex: 9999999,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '20px'
+        }}>
+          <div className="card-glow" style={{
+            width: '100%',
+            maxWidth: '420px',
+            background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+            border: '2px solid var(--brand-orange)',
+            borderRadius: '16px',
+            padding: '24px',
+            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.6)',
+            textAlign: 'center',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px'
+          }}>
+            <span style={{ fontSize: '3rem' }}>📍</span>
+            <h3 style={{ fontSize: '1.25rem', color: 'white', fontWeight: 'bold', margin: 0 }}>
+              Bienvenido a MetroMile
+            </h3>
+            <p style={{ fontSize: '0.85rem', color: '#cbd5e1', lineHeight: '1.5', margin: 0 }}>
+              Para sugerirte las mejores líneas de transporte para correr, necesitamos saber en qué ciudad te encuentras.
+            </p>
+            
+            <button
+              onClick={() => {
+                navigator.geolocation.getCurrentPosition(
+                  (pos) => {
+                    const lat = pos.coords.latitude;
+                    const lon = pos.coords.longitude;
+                    let closest = citiesList[0] || { id: 'madrid', center: [40.4167, -3.7037] };
+                    let minDist = Infinity;
+                    citiesList.forEach(c => {
+                      const dist = haversineDistance(lat, lon, c.center[0], c.center[1]);
+                      if (dist < minDist) {
+                        minDist = dist;
+                        closest = c;
+                      }
+                    });
+                    setActiveCity(closest.id);
+                    if (closest.transports && closest.transports.length > 0) {
+                      setActiveTransport(closest.transports[0]);
+                    }
+                    addNotification('Location', `Te hemos ubicado en ${closest.name}.`, 'success');
+                  },
+                  (err) => {
+                    console.error(err);
+                    addNotification('Location', 'No se pudo obtener tu ubicación. Por favor, selecciona una ciudad manualmente.', 'info');
+                  }
+                );
+              }}
+              style={{
+                background: 'linear-gradient(135deg, #ff7e40, var(--brand-orange))',
+                color: 'white',
+                border: 'none',
+                padding: '12px',
+                borderRadius: '8px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                boxShadow: '0 4px 15px rgba(252, 82, 0, 0.3)'
+              }}
+            >
+              📍 Compartir mi ubicación (Recomendado)
+            </button>
+            
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '8px 0' }}>
+              <hr style={{ flex: 1, border: 'none', borderTop: '1px solid #475569' }} />
+              <span style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase' }}>O selecciona manualmente</span>
+              <hr style={{ flex: 1, border: 'none', borderTop: '1px solid #475569' }} />
+            </div>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', maxHeight: '180px', overflowY: 'auto', paddingRight: '4px' }}>
+              {(citiesList.length > 0 ? citiesList : [
+                { id: 'burgos', name: 'Burgos', country: 'España', center: [42.3448, -3.6812], zoom: 13, transports: ['bus'] },
+                { id: 'madrid', name: 'Madrid', country: 'España', center: [40.4167, -3.7037], zoom: 12, transports: ['metro'] },
+                { id: 'barcelona', name: 'Barcelona', country: 'España', center: [41.3851, 2.1734], zoom: 12, transports: ['metro'] },
+                { id: 'bilbao', name: 'Bilbao', country: 'España', center: [43.2630, -2.9350], zoom: 12, transports: ['metro'] }
+              ]).map(city => (
+                <button
+                  key={city.id}
+                  onClick={() => {
+                    setActiveCity(city.id);
+                    if (city.transports && city.transports.length > 0) {
+                      setActiveTransport(city.transports[0]);
+                    }
+                    addNotification('Location', `Ciudad establecida en ${city.name}.`, 'success');
+                  }}
+                  style={{
+                    background: '#334155',
+                    color: 'white',
+                    border: 'none',
+                    padding: '8px',
+                    borderRadius: '6px',
+                    fontSize: '0.8rem',
+                    fontWeight: '500',
+                    cursor: 'pointer',
+                    transition: 'background 0.2s'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#475569'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = '#334155'}
+                >
+                  {city.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Onboarding Tutorial Floating Panel */}
       {tutorialStep !== null && (
         <div style={{
@@ -8882,42 +9113,86 @@ ${segments.join('\n')}
       )}
 
       {/* Floating Bottom Dock Navigation */}
-      <nav className="bottom-nav-bar">
+      <nav className="bottom-nav-bar" style={{ zIndex: tutorialStep !== null ? 999999 : 1000 }}>
         <button 
           className={`bottom-nav-item ${activeTab === 'feed' ? 'active' : ''}`}
-          onClick={() => setActiveTab('feed')}
+          onClick={() => {
+            if (tutorialStep === null) setActiveTab('feed');
+          }}
+          style={{
+            position: 'relative',
+            zIndex: (tutorialStep !== null && getTutorialSteps()[tutorialStep - 1]?.tab === 'feed') ? 999999 : 'auto',
+            boxShadow: (tutorialStep !== null && getTutorialSteps()[tutorialStep - 1]?.tab === 'feed') ? '0 0 15px var(--brand-orange)' : 'none',
+            borderRadius: '12px'
+          }}
         >
           <span className="bottom-nav-icon" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
             <Icons.Feed />
           </span>
           <span>{t('feed')}</span>
+          {tutorialStep !== null && getTutorialSteps()[tutorialStep - 1]?.tab === 'feed' && (
+            <div className="tutorial-arrow-bounce" style={{ position: 'absolute', top: '-30px', left: '50%', fontSize: '1.25rem', color: 'var(--brand-orange)', pointerEvents: 'none', zIndex: 1000000 }}>▼</div>
+          )}
         </button>
         <button 
           className={`bottom-nav-item ${activeTab === 'map' ? 'active' : ''}`}
-          onClick={() => setActiveTab('map')}
+          onClick={() => {
+            if (tutorialStep === null) setActiveTab('map');
+          }}
+          style={{
+            position: 'relative',
+            zIndex: (tutorialStep !== null && getTutorialSteps()[tutorialStep - 1]?.tab === 'map') ? 999999 : 'auto',
+            boxShadow: (tutorialStep !== null && getTutorialSteps()[tutorialStep - 1]?.tab === 'map') ? '0 0 15px var(--brand-orange)' : 'none',
+            borderRadius: '12px'
+          }}
         >
           <span className="bottom-nav-icon" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
             <Icons.Map />
           </span>
           <span>{t('map')}</span>
+          {tutorialStep !== null && getTutorialSteps()[tutorialStep - 1]?.tab === 'map' && (
+            <div className="tutorial-arrow-bounce" style={{ position: 'absolute', top: '-30px', left: '50%', fontSize: '1.25rem', color: 'var(--brand-orange)', pointerEvents: 'none', zIndex: 1000000 }}>▼</div>
+          )}
         </button>
         <button 
           className={`bottom-nav-item ${activeTab === 'search' ? 'active' : ''}`}
-          onClick={() => setActiveTab('search')}
+          onClick={() => {
+            if (tutorialStep === null) setActiveTab('search');
+          }}
+          style={{
+            position: 'relative',
+            zIndex: (tutorialStep !== null && getTutorialSteps()[tutorialStep - 1]?.tab === 'search') ? 999999 : 'auto',
+            boxShadow: (tutorialStep !== null && getTutorialSteps()[tutorialStep - 1]?.tab === 'search') ? '0 0 15px var(--brand-orange)' : 'none',
+            borderRadius: '12px'
+          }}
         >
           <span className="bottom-nav-icon" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
             <Icons.Search />
           </span>
           <span>{t('search')}</span>
+          {tutorialStep !== null && getTutorialSteps()[tutorialStep - 1]?.tab === 'search' && (
+            <div className="tutorial-arrow-bounce" style={{ position: 'absolute', top: '-30px', left: '50%', fontSize: '1.25rem', color: 'var(--brand-orange)', pointerEvents: 'none', zIndex: 1000000 }}>▼</div>
+          )}
         </button>
         <button 
           className={`bottom-nav-item ${activeTab === 'profile' ? 'active' : ''}`}
-          onClick={() => setActiveTab('profile')}
+          onClick={() => {
+            if (tutorialStep === null) setActiveTab('profile');
+          }}
+          style={{
+            position: 'relative',
+            zIndex: (tutorialStep !== null && getTutorialSteps()[tutorialStep - 1]?.tab === 'profile') ? 999999 : 'auto',
+            boxShadow: (tutorialStep !== null && getTutorialSteps()[tutorialStep - 1]?.tab === 'profile') ? '0 0 15px var(--brand-orange)' : 'none',
+            borderRadius: '12px'
+          }}
         >
           <span className="bottom-nav-icon" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
             <Icons.Profile />
           </span>
           <span>{t('profile')}</span>
+          {tutorialStep !== null && getTutorialSteps()[tutorialStep - 1]?.tab === 'profile' && (
+            <div className="tutorial-arrow-bounce" style={{ position: 'absolute', top: '-30px', left: '50%', fontSize: '1.25rem', color: 'var(--brand-orange)', pointerEvents: 'none', zIndex: 1000000 }}>▼</div>
+          )}
         </button>
       </nav>
 

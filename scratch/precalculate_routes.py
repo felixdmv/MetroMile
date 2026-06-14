@@ -4,18 +4,82 @@ import math
 import sys
 import time
 import urllib.request
-import urllib.parse
 
 if sys.platform.startswith('win'):
     sys.stdout.reconfigure(encoding='utf-8')
 
 def haversine(lat1, lon1, lat2, lon2):
-    R = 6371.0  # Earth radius in km
+    R = 6371.0  # km
     dlat = math.radians(lat2 - lat1)
     dlon = math.radians(lon2 - lon1)
     a = math.sin(dlat / 2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2)**2
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
     return R * c
+
+def get_surface_coordinate(lat, lon):
+    exclude_keywords = [
+        'intercambiador', 'túnel', 'tunnel', 'estación', 'station', 
+        'metro', 'subterráneo', 'subterraneo', 'escala', 'escalera', 
+        'ascensor', 'lift', 'elevator', 'platform', 'andén', 'anden', 
+        'via', 'vía', 'railway', 'platform', 'bypass', 'autovía', 
+        'autovia', 'autopista', 'motorway', 'expressway', 'highway', 
+        'link', 'périphérique', 'peripherique'
+    ]
+    
+    url = f"https://router.project-osrm.org/nearest/v1/foot/{lon},{lat}?number=10"
+    try:
+        req = urllib.request.Request(url, headers={'User-Agent': 'MetroMileNearestTester/1.0'})
+        with urllib.request.urlopen(req, timeout=10) as response:
+            data = json.loads(response.read().decode('utf-8'))
+            
+        waypoints = data.get('waypoints', [])
+        for wp in waypoints:
+            name = wp['name']
+            name_lower = name.lower()
+            
+            exclude = False
+            if not name:
+                exclude = True
+            else:
+                for kw in exclude_keywords:
+                    if kw in name_lower:
+                        exclude = True
+                        break
+            if not exclude:
+                loc = wp['location']
+                return loc[1], loc[0]
+                
+        if waypoints:
+            loc = waypoints[0]['location']
+            return loc[1], loc[0]
+    except Exception as e:
+        pass
+        
+    return lat, lon
+
+def get_single_leg_route(lon1, lat1, lon2, lat2):
+    url = f"https://router.project-osrm.org/route/v1/foot/{lon1},{lat1};{lon2},{lat2}?overview=full&geometries=geojson&steps=true"
+    try:
+        req = urllib.request.Request(url, headers={'User-Agent': 'MetroMileRouteTester/1.0'})
+        with urllib.request.urlopen(req, timeout=10) as response:
+            data = json.loads(response.read().decode('utf-8'))
+        if 'routes' in data and len(data['routes']) > 0:
+            route = data['routes'][0]
+            distance = route['distance']
+            coords = []
+            legs = route.get('legs', [])
+            if legs:
+                steps = legs[0].get('steps', [])
+                for step in steps:
+                    step_coords = step.get('geometry', {}).get('coordinates', [])
+                    for pt in step_coords:
+                        coord = [pt[1], pt[0], 800.0]
+                        if not coords or coords[-1][:2] != coord[:2]:
+                            coords.append(coord)
+            return distance, coords
+    except Exception as e:
+        pass
+    return None, None
 
 def precalculate_all_routes():
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -66,7 +130,7 @@ def precalculate_all_routes():
                 updated_routes_full.append(route)
                 continue
             
-            # Prepare stops list, handle circular closure if needed
+            # Check circularity
             name_lower = route["name"].lower()
             ref_upper = route["ref"].upper()
             desc_lower = route.get("description", "").lower()
@@ -79,98 +143,119 @@ def precalculate_all_routes():
                 ref_upper in ["L6", "L12", "L12A", "L12B"]
             )
             
-            # Check if start and end are already the same station
+            routing_stops = list(stops)
             start_stop = stops[0]
             end_stop = stops[-1]
             dist_ends = haversine(start_stop["lat"], start_stop["lon"], end_stop["lat"], end_stop["lon"])
             
-            routing_stops = list(stops)
             if is_circular and dist_ends > 0.05:
-                # Add the first stop at the end to make it a closed loop for routing
                 routing_stops.append(start_stop)
                 
-            # Query OSRM for the entire list of stops
-            coords_str = ";".join(f"{s['lon']},{s['lat']}" for s in routing_stops)
-            url = f"https://router.project-osrm.org/route/v1/foot/{coords_str}?overview=full&geometries=geojson&steps=true"
-            
             new_coords = []
-            osrm_success = False
             total_dist_meters = 0.0
             
-            try:
-                # Add User-Agent to avoid blocking
-                req = urllib.request.Request(url, headers={'User-Agent': 'MetroMileRouteBuilder/1.0'})
-                with urllib.request.urlopen(req, timeout=15) as response:
-                    data = json.loads(response.read().decode('utf-8'))
+            # Process leg by leg
+            for i in range(len(routing_stops) - 1):
+                s1 = routing_stops[i]
+                s2 = routing_stops[i+1]
+                
+                d_straight = haversine(s1['lat'], s1['lon'], s2['lat'], s2['lon']) * 1000.0 # meters
+                
+                # We will check 4 OSRM options to find the best route without detour,
+                # or fallback to the shortest available route.
+                chosen_coords = None
+                chosen_dist = None
+                method_used = ""
+                
+                # 1. Option A: Unsnapped A -> B
+                dist_unsnap, coords_unsnap = get_single_leg_route(s1['lon'], s1['lat'], s2['lon'], s2['lat'])
+                time.sleep(0.02)
+                
+                if dist_unsnap is not None:
+                    is_unsnap_detour = (dist_unsnap > 1.8 * d_straight + 400.0) or (dist_unsnap > 2.5 * d_straight)
+                    if not is_unsnap_detour:
+                        chosen_coords = coords_unsnap
+                        chosen_dist = dist_unsnap
+                        method_used = "unsnapped"
+                        
+                # 2. Option B: Snapped A -> B (using surface coordinates)
+                if chosen_coords is None:
+                    lat1_s, lon1_s = get_surface_coordinate(s1['lat'], s1['lon'])
+                    lat2_s, lon2_s = get_surface_coordinate(s2['lat'], s2['lon'])
+                    time.sleep(0.02)
                     
-                if 'routes' in data and len(data['routes']) > 0:
-                    osrm_route = data['routes'][0]
-                    legs = osrm_route.get('legs', [])
+                    dist_snap, coords_snap = get_single_leg_route(lon1_s, lat1_s, lon2_s, lat2_s)
+                    time.sleep(0.02)
                     
-                    if len(legs) == len(routing_stops) - 1:
-                        osrm_success = True
-                        for i in range(len(legs)):
-                            s1 = routing_stops[i]
-                            s2 = routing_stops[i+1]
+                    if dist_snap is not None:
+                        is_snap_detour = (dist_snap > 1.8 * d_straight + 400.0) or (dist_snap > 2.5 * d_straight)
+                        if not is_snap_detour:
+                            chosen_coords = coords_snap
+                            chosen_dist = dist_snap
+                            method_used = "snapped"
                             
-                            d_straight = haversine(s1['lat'], s1['lon'], s2['lat'], s2['lon']) * 1000.0 # meters
-                            leg_distance = legs[i].get('distance', d_straight)
+                # 3. Option C: Reversed Snapped B -> A
+                if chosen_coords is None and 'lat1_s' in locals():
+                    dist_opp_snap, coords_opp_snap = get_single_leg_route(lon2_s, lat2_s, lon1_s, lat1_s)
+                    time.sleep(0.02)
+                    if dist_opp_snap is not None:
+                        is_opp_snap_detour = (dist_opp_snap > 1.8 * d_straight + 400.0) or (dist_opp_snap > 2.5 * d_straight)
+                        if not is_opp_snap_detour:
+                            chosen_coords = list(coords_opp_snap)
+                            chosen_coords.reverse()
+                            chosen_dist = dist_opp_snap
+                            method_used = "opposite snapped"
                             
-                            # Detour detection threshold
-                            # If OSRM distance is 1.8x straight distance + 400m OR 2.5x straight distance, trigger fallback
-                            is_detour = (leg_distance > 1.8 * d_straight + 400.0) or (leg_distance > 2.5 * d_straight)
+                # 4. Option D: Reversed Unsnapped B -> A
+                if chosen_coords is None:
+                    dist_opp_unsnap, coords_opp_unsnap = get_single_leg_route(s2['lon'], s2['lat'], s1['lon'], s1['lat'])
+                    time.sleep(0.02)
+                    if dist_opp_unsnap is not None:
+                        is_opp_unsnap_detour = (dist_opp_unsnap > 1.8 * d_straight + 400.0) or (dist_opp_unsnap > 2.5 * d_straight)
+                        if not is_opp_unsnap_detour:
+                            chosen_coords = list(coords_opp_unsnap)
+                            chosen_coords.reverse()
+                            chosen_dist = dist_opp_unsnap
+                            method_used = "opposite unsnapped"
                             
-                            leg_points = []
-                            if is_detour:
-                                print(f"    [Detour Warning] {route['ref']} leg {s1['name']} -> {s2['name']}: OSRM={leg_distance:.1f}m vs Straight={d_straight:.1f}m. Using straight line.")
-                                # Fallback to straight line
-                                leg_points = [
-                                    [s1['lat'], s1['lon'], 800.0],
-                                    [s2['lat'], s2['lon'], 800.0]
-                                ]
-                                total_dist_meters += d_straight
-                            else:
-                                # Extract points from steps
-                                steps = legs[i].get('steps', [])
-                                for step in steps:
-                                    step_coords = step.get('geometry', {}).get('coordinates', [])
-                                    for pt in step_coords:
-                                        coord = [pt[1], pt[0], 800.0] # [lat, lon, elevation]
-                                        if not leg_points or leg_points[-1][:2] != coord[:2]:
-                                            leg_points.append(coord)
-                                            
-                                # If OSRM returned empty or weird points, fallback
-                                if len(leg_points) < 2:
-                                    leg_points = [
-                                        [s1['lat'], s1['lon'], 800.0],
-                                        [s2['lat'], s2['lon'], 800.0]
-                                    ]
-                                    total_dist_meters += d_straight
-                                else:
-                                    total_dist_meters += leg_distance
-                            
-                            # Append to main list, avoiding duplicate boundary points
-                            for pt in leg_points:
-                                if not new_coords or new_coords[-1][:2] != pt[:2]:
-                                    new_coords.append(pt)
+                # 5. Option E: Fallback to the shortest of all returned OSRM candidates to avoid straight line
+                if chosen_coords is None:
+                    candidates = []
+                    if dist_unsnap is not None:
+                        candidates.append((dist_unsnap, coords_unsnap, "unsnapped detour"))
+                    if 'dist_snap' in locals() and dist_snap is not None:
+                        candidates.append((dist_snap, coords_snap, "snapped detour"))
+                    if 'dist_opp_snap' in locals() and dist_opp_snap is not None:
+                        rev = list(coords_opp_snap)
+                        rev.reverse()
+                        candidates.append((dist_opp_snap, rev, "opposite snapped detour"))
+                    if 'dist_opp_unsnap' in locals() and dist_opp_unsnap is not None:
+                        rev = list(coords_opp_unsnap)
+                        rev.reverse()
+                        candidates.append((dist_opp_unsnap, rev, "opposite unsnapped detour"))
+                        
+                    if candidates:
+                        candidates.sort(key=lambda x: x[0])
+                        chosen_dist, chosen_coords, method_used = candidates[0]
+                        print(f"    [Detour Forced] {route['ref']} {s1['name']} -> {s2['name']}: {method_used} ({chosen_dist:.1f}m vs Straight={d_straight:.1f}m)")
                     else:
-                        print(f"    [Warning] Legs count {len(legs)} doesn't match expected {len(routing_stops)-1}.")
-                else:
-                    print(f"    [Warning] OSRM returned no routes for {route['ref']}.")
-            except Exception as e:
-                print(f"    [Error] OSRM request failed for {route['ref']}: {e}")
+                        # Fallback to straight line only if OSRM is totally down / returned nothing
+                        chosen_coords = [
+                            [s1['lat'], s1['lon'], 800.0],
+                            [s2['lat'], s2['lon'], 800.0]
+                        ]
+                        chosen_dist = d_straight
+                        method_used = "straight fallback"
+                        print(f"    [Straight Fallback] OSRM failed completely for {route['ref']} {s1['name']} -> {s2['name']}")
                 
-            # Fallback if OSRM failed completely
-            if not osrm_success or not new_coords:
-                print(f"    [Fallback] Usando línea recta entre todas las estaciones para {route['ref']}.")
-                new_coords = [[s["lat"], s["lon"], 800.0] for s in routing_stops]
-                total_dist = 0.0
-                for i in range(len(new_coords) - 1):
-                    total_dist += haversine(new_coords[i][0], new_coords[i][1], new_coords[i+1][0], new_coords[i+1][1])
-                total_dist_km = total_dist
-            else:
-                total_dist_km = total_dist_meters / 1000.0
+                # Append coordinates, avoiding boundary duplicates
+                for pt in chosen_coords:
+                    if not new_coords or new_coords[-1][:2] != pt[:2]:
+                        new_coords.append(pt)
+                total_dist_meters += chosen_dist
                 
+            total_dist_km = total_dist_meters / 1000.0
+            
             # Ensure distance is not zero
             if total_dist_km == 0.0:
                 total_dist_km = route.get("distanceKm", 1.0)
@@ -197,19 +282,18 @@ def precalculate_all_routes():
             updated_metadata.append(route_meta)
             updated_routes_full.append(route)
             
-            print(f"  [OK] {route['ref']} - {route['name']}: {len(stops)} paradas -> Distancia calculada: {route['distanceKm']} km")
-            time.sleep(0.1) # Friendly delay to avoid rate limit
+            print(f"  [OK] {route['ref']} - {route['name']}: {len(stops)} paradas -> Distancia final: {route['distanceKm']} km")
             
         # Save updated metadata.json
         with open(metadata_file, "w", encoding="utf-8") as f:
             json.dump(updated_metadata, f, ensure_ascii=False, indent=2)
             
-        # Save compatibility legacy single-city file (e.g. public/data/madrid.json)
+        # Save legacy single-file city JSON
         compat_file = os.path.join(data_dir, f"{city_id}.json")
         with open(compat_file, "w", encoding="utf-8") as f:
             json.dump(updated_routes_full, f, ensure_ascii=False, indent=2)
             
-    print("\n¡Precalculo completado con éxito!")
+    print("\n¡Precalculo de superficie y correcciones de calles completado con éxito!")
 
 if __name__ == "__main__":
     precalculate_all_routes()
