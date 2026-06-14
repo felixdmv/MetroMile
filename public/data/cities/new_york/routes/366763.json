@@ -3,11 +3,11 @@
   "name": "NYCS - L Train: 8th Avenue → Canarsie–Rockaway Parkway",
   "ref": "L",
   "description": "Ruta real de metro urbano gestionada por New York City Transit Authority.",
-  "distanceKm": 23.32,
+  "distanceKm": 23.15,
   "elevationGain": 0.0,
   "elevationLoss": 0.0,
-  "estWalkingSeconds": 18659,
-  "estRunningSeconds": 7633,
+  "estWalkingSeconds": 18521,
+  "estRunningSeconds": 7577,
   "stopsCount": 24,
   "coords": [
     [
@@ -3181,41 +3181,6 @@
       800.0
     ],
     [
-      40.675259,
-      -73.904298,
-      800.0
-    ],
-    [
-      40.675242,
-      -73.904355,
-      800.0
-    ],
-    [
-      40.675223,
-      -73.904416,
-      800.0
-    ],
-    [
-      40.675111,
-      -73.904389,
-      800.0
-    ],
-    [
-      40.675131,
-      -73.904302,
-      800.0
-    ],
-    [
-      40.675178,
-      -73.904103,
-      800.0
-    ],
-    [
-      40.675394,
-      -73.903449,
-      800.0
-    ],
-    [
       40.675357,
       -73.90344,
       800.0
@@ -4036,8 +4001,8 @@
       800.0
     ],
     [
-      40.645566,
-      -73.902797,
+      40.645839,
+      -73.902607,
       800.0
     ]
   ],

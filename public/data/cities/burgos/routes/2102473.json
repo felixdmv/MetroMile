@@ -3,11 +3,11 @@
   "name": "L06: Plaza España → Ismael García Rámila",
   "ref": "L06",
   "description": "Ruta real de bus urbano gestionada por Servicio Municipalizado de Movilidad y Transportes.",
-  "distanceKm": 3.14,
+  "distanceKm": 3.13,
   "elevationGain": 0.0,
   "elevationLoss": 0.0,
-  "estWalkingSeconds": 2514,
-  "estRunningSeconds": 1028,
+  "estWalkingSeconds": 2507,
+  "estRunningSeconds": 1025,
   "stopsCount": 22,
   "coords": [
     [

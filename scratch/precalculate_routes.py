@@ -16,6 +16,39 @@ def haversine(lat1, lon1, lat2, lon2):
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
     return R * c
 
+def prune_loops(coords):
+    if len(coords) < 4:
+        return coords
+        
+    i = 0
+    while i < len(coords) - 3:
+        best_j = -1
+        # Search from the end of the list for the largest loop starting at i
+        for j in range(len(coords) - 1, i + 2, -1):
+            p1 = coords[i]
+            p2 = coords[j]
+            d_straight = haversine(p1[0], p1[1], p2[0], p2[1]) * 1000.0 # meters
+            
+            if d_straight < 48.0: # If endpoints are within 48 meters (avenue width / narrow crossing)
+                # Calculate path distance between i and j
+                d_path = 0.0
+                for k in range(i, j):
+                    d_path += haversine(coords[k][0], coords[k][1], coords[k+1][0], coords[k+1][1]) * 1000.0
+                
+                # If the path walks a detour to cross
+                if d_path > 80.0 and d_path > 2.0 * d_straight:
+                    best_j = j
+                    break # Found the largest loop starting at i
+                    
+        if best_j != -1:
+            # Prune loop: connect coords[i] directly to coords[best_j]
+            coords = coords[:i+1] + coords[best_j:]
+            # Don't increment i; evaluate the new coords[i] against subsequent points
+        else:
+            i += 1
+            
+    return coords
+
 def get_surface_coordinate(lat, lon):
     exclude_keywords = [
         'intercambiador', 'túnel', 'tunnel', 'estación', 'station', 
@@ -161,8 +194,6 @@ def precalculate_all_routes():
                 
                 d_straight = haversine(s1['lat'], s1['lon'], s2['lat'], s2['lon']) * 1000.0 # meters
                 
-                # We will check 4 OSRM options to find the best route without detour,
-                # or fallback to the shortest available route.
                 chosen_coords = None
                 chosen_dist = None
                 method_used = ""
@@ -172,10 +203,14 @@ def precalculate_all_routes():
                 time.sleep(0.02)
                 
                 if dist_unsnap is not None:
-                    is_unsnap_detour = (dist_unsnap > 1.8 * d_straight + 400.0) or (dist_unsnap > 2.5 * d_straight)
+                    # Apply loop pruning to Option A
+                    coords_unsnap_pruned = prune_loops(list(coords_unsnap))
+                    dist_unsnap_pruned = sum(haversine(coords_unsnap_pruned[k][0], coords_unsnap_pruned[k][1], coords_unsnap_pruned[k+1][0], coords_unsnap_pruned[k+1][1]) for k in range(len(coords_unsnap_pruned)-1)) * 1000.0
+                    
+                    is_unsnap_detour = (dist_unsnap_pruned > 1.8 * d_straight + 400.0) or (dist_unsnap_pruned > 2.5 * d_straight)
                     if not is_unsnap_detour:
-                        chosen_coords = coords_unsnap
-                        chosen_dist = dist_unsnap
+                        chosen_coords = coords_unsnap_pruned
+                        chosen_dist = dist_unsnap_pruned
                         method_used = "unsnapped"
                         
                 # 2. Option B: Snapped A -> B (using surface coordinates)
@@ -188,10 +223,13 @@ def precalculate_all_routes():
                     time.sleep(0.02)
                     
                     if dist_snap is not None:
-                        is_snap_detour = (dist_snap > 1.8 * d_straight + 400.0) or (dist_snap > 2.5 * d_straight)
+                        coords_snap_pruned = prune_loops(list(coords_snap))
+                        dist_snap_pruned = sum(haversine(coords_snap_pruned[k][0], coords_snap_pruned[k][1], coords_snap_pruned[k+1][0], coords_snap_pruned[k+1][1]) for k in range(len(coords_snap_pruned)-1)) * 1000.0
+                        
+                        is_snap_detour = (dist_snap_pruned > 1.8 * d_straight + 400.0) or (dist_snap_pruned > 2.5 * d_straight)
                         if not is_snap_detour:
-                            chosen_coords = coords_snap
-                            chosen_dist = dist_snap
+                            chosen_coords = coords_snap_pruned
+                            chosen_dist = dist_snap_pruned
                             method_used = "snapped"
                             
                 # 3. Option C: Reversed Snapped B -> A
@@ -199,11 +237,14 @@ def precalculate_all_routes():
                     dist_opp_snap, coords_opp_snap = get_single_leg_route(lon2_s, lat2_s, lon1_s, lat1_s)
                     time.sleep(0.02)
                     if dist_opp_snap is not None:
-                        is_opp_snap_detour = (dist_opp_snap > 1.8 * d_straight + 400.0) or (dist_opp_snap > 2.5 * d_straight)
+                        coords_opp_snap_pruned = prune_loops(list(coords_opp_snap))
+                        dist_opp_snap_pruned = sum(haversine(coords_opp_snap_pruned[k][0], coords_opp_snap_pruned[k][1], coords_opp_snap_pruned[k+1][0], coords_opp_snap_pruned[k+1][1]) for k in range(len(coords_opp_snap_pruned)-1)) * 1000.0
+                        
+                        is_opp_snap_detour = (dist_opp_snap_pruned > 1.8 * d_straight + 400.0) or (dist_opp_snap_pruned > 2.5 * d_straight)
                         if not is_opp_snap_detour:
-                            chosen_coords = list(coords_opp_snap)
+                            chosen_coords = list(coords_opp_snap_pruned)
                             chosen_coords.reverse()
-                            chosen_dist = dist_opp_snap
+                            chosen_dist = dist_opp_snap_pruned
                             method_used = "opposite snapped"
                             
                 # 4. Option D: Reversed Unsnapped B -> A
@@ -211,28 +252,39 @@ def precalculate_all_routes():
                     dist_opp_unsnap, coords_opp_unsnap = get_single_leg_route(s2['lon'], s2['lat'], s1['lon'], s1['lat'])
                     time.sleep(0.02)
                     if dist_opp_unsnap is not None:
-                        is_opp_unsnap_detour = (dist_opp_unsnap > 1.8 * d_straight + 400.0) or (dist_opp_unsnap > 2.5 * d_straight)
+                        coords_opp_unsnap_pruned = prune_loops(list(coords_opp_unsnap))
+                        dist_opp_unsnap_pruned = sum(haversine(coords_opp_unsnap_pruned[k][0], coords_opp_unsnap_pruned[k][1], coords_opp_unsnap_pruned[k+1][0], coords_opp_unsnap_pruned[k+1][1]) for k in range(len(coords_opp_unsnap_pruned)-1)) * 1000.0
+                        
+                        is_opp_unsnap_detour = (dist_opp_unsnap_pruned > 1.8 * d_straight + 400.0) or (dist_opp_unsnap_pruned > 2.5 * d_straight)
                         if not is_opp_unsnap_detour:
-                            chosen_coords = list(coords_opp_unsnap)
+                            chosen_coords = list(coords_opp_unsnap_pruned)
                             chosen_coords.reverse()
-                            chosen_dist = dist_opp_unsnap
+                            chosen_dist = dist_opp_unsnap_pruned
                             method_used = "opposite unsnapped"
                             
                 # 5. Option E: Fallback to the shortest of all returned OSRM candidates to avoid straight line
                 if chosen_coords is None:
                     candidates = []
                     if dist_unsnap is not None:
-                        candidates.append((dist_unsnap, coords_unsnap, "unsnapped detour"))
+                        coords_unsnap_pruned = prune_loops(list(coords_unsnap))
+                        dist_unsnap_pruned = sum(haversine(coords_unsnap_pruned[k][0], coords_unsnap_pruned[k][1], coords_unsnap_pruned[k+1][0], coords_unsnap_pruned[k+1][1]) for k in range(len(coords_unsnap_pruned)-1)) * 1000.0
+                        candidates.append((dist_unsnap_pruned, coords_unsnap_pruned, "unsnapped detour"))
                     if 'dist_snap' in locals() and dist_snap is not None:
-                        candidates.append((dist_snap, coords_snap, "snapped detour"))
+                        coords_snap_pruned = prune_loops(list(coords_snap))
+                        dist_snap_pruned = sum(haversine(coords_snap_pruned[k][0], coords_snap_pruned[k][1], coords_snap_pruned[k+1][0], coords_snap_pruned[k+1][1]) for k in range(len(coords_snap_pruned)-1)) * 1000.0
+                        candidates.append((dist_snap_pruned, coords_snap_pruned, "snapped detour"))
                     if 'dist_opp_snap' in locals() and dist_opp_snap is not None:
-                        rev = list(coords_opp_snap)
+                        coords_opp_snap_pruned = prune_loops(list(coords_opp_snap))
+                        dist_opp_snap_pruned = sum(haversine(coords_opp_snap_pruned[k][0], coords_opp_snap_pruned[k][1], coords_opp_snap_pruned[k+1][0], coords_opp_snap_pruned[k+1][1]) for k in range(len(coords_opp_snap_pruned)-1)) * 1000.0
+                        rev = list(coords_opp_snap_pruned)
                         rev.reverse()
-                        candidates.append((dist_opp_snap, rev, "opposite snapped detour"))
+                        candidates.append((dist_opp_snap_pruned, rev, "opposite snapped detour"))
                     if 'dist_opp_unsnap' in locals() and dist_opp_unsnap is not None:
-                        rev = list(coords_opp_unsnap)
+                        coords_opp_unsnap_pruned = prune_loops(list(coords_opp_unsnap))
+                        dist_opp_unsnap_pruned = sum(haversine(coords_opp_unsnap_pruned[k][0], coords_opp_unsnap_pruned[k][1], coords_opp_unsnap_pruned[k+1][0], coords_opp_unsnap_pruned[k+1][1]) for k in range(len(coords_opp_unsnap_pruned)-1)) * 1000.0
+                        rev = list(coords_opp_unsnap_pruned)
                         rev.reverse()
-                        candidates.append((dist_opp_unsnap, rev, "opposite unsnapped detour"))
+                        candidates.append((dist_opp_unsnap_pruned, rev, "opposite unsnapped detour"))
                         
                     if candidates:
                         candidates.sort(key=lambda x: x[0])
