@@ -2007,11 +2007,7 @@ export default function App() {
   // Private Messages simulation
   const [showChatModal, setShowChatModal] = useState(false);
   const [chatInput, setChatInput] = useState('');
-  const [chatMessages, setChatMessages] = useState<Array<{ sender: 'me' | 'other'; text: string; time: string }>>([
-    { sender: 'other', text: '¡Buenas! He visto en el feed que has completado la L01. ¿Qué tal el ritmo en la zona del Bulevar?', time: '10:14' },
-    { sender: 'me', text: '¡Hola! Muy bien, el terreno es bastante llano por allí y se corre muy cómodo por la acera.', time: '10:16' },
-    { sender: 'other', text: 'Genial. Yo hoy saldré a intentar completar la L05. A ver si subo de rango burgalés. 💪', time: '10:20' }
-  ]);
+  const [chatMessages, setChatMessages] = useState<Array<{ sender: 'me' | 'other'; text: string; time: string }>>([]);
 
   // Social athletes follow list & Athlete search
   const [followedAthletes, setFollowedAthletes] = useState<Record<string, boolean>>({
@@ -2060,11 +2056,7 @@ export default function App() {
   const [showUpdateBanner, setShowUpdateBanner] = useState(false);
 
   // Notifications state
-  const [unreadNotifications, setUnreadNotifications] = useState<Array<{ id: string; title: string; body: string; time: string; read: boolean; type: string }>>([
-    { id: 'n-1', title: 'Nueva Seguidora', body: 'Sofía Martínez ha empezado a seguirte.', time: 'Hace 10 min', read: false, type: 'follow' },
-    { id: 'n-2', title: 'Comentario en Actividad', body: 'Marta Corredora comentó: "¡Buen entreno en la L01!"', time: 'Hace 1 hora', read: false, type: 'comment' },
-    { id: 'n-3', title: 'Logro Desbloqueado', body: '¡Has alcanzado el rango Peregrino del Camino!', time: 'Ayer', read: true, type: 'achievement' }
-  ]);
+  const [unreadNotifications, setUnreadNotifications] = useState<Array<{ id: string; title: string; body: string; time: string; read: boolean; type: string }>>([]);
   const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
 
   // Live GPS Tracking state
@@ -2085,6 +2077,7 @@ export default function App() {
   });
   
   const [chatRecipient, setChatRecipient] = useState<{ id: string; name: string } | null>(null);
+  const [offlineChats, setOfflineChats] = useState<Record<string, Array<{ sender: 'me' | 'other'; text: string; time: string }>>>({});
   const [registeredAthletes, setRegisteredAthletes] = useState<any[]>([]);
 
   const activeAthletesList = useMemo(() => {
@@ -2137,6 +2130,11 @@ export default function App() {
       }
     ];
   }, [registeredAthletes, userProfile.id]);
+
+  const availableChatContacts = useMemo(() => {
+    const list = supabase && userProfile.loggedIn ? registeredAthletes : mockAthletesList;
+    return list.filter(ath => ath.id !== userProfile.id);
+  }, [registeredAthletes, userProfile.id, userProfile.loggedIn, supabase]);
 
   const getTutorialSteps = () => {
     const lang = userSettings.lang || 'es';
@@ -2413,7 +2411,12 @@ export default function App() {
 
     const notifs = localStorage.getItem('metromile-user-notifications-v5');
     if (notifs) {
-      try { setUnreadNotifications(JSON.parse(notifs)); } catch(e) {}
+      try {
+        const parsed = JSON.parse(notifs);
+        if (Array.isArray(parsed)) {
+          setUnreadNotifications(parsed.filter((n: any) => n.id !== 'n-1' && n.id !== 'n-2'));
+        }
+      } catch(e) {}
     }
 
     const tutorialSeen = localStorage.getItem('metromile-tutorial-seen');
@@ -3802,6 +3805,8 @@ export default function App() {
     if (!recipient) return;
 
     setChatInput('');
+    const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const newMsgObj = { sender: 'me' as const, text: textStr.trim(), time: timeNow };
 
     if (supabase && userProfile.loggedIn) {
       const { error } = await supabase.from('messages').insert({
@@ -3812,6 +3817,15 @@ export default function App() {
       if (error) {
         console.error('Error sending message:', error);
       }
+    } else {
+      setOfflineChats(prev => {
+        const currentMsgs = prev[recipient.id] || [];
+        return {
+          ...prev,
+          [recipient.id]: [...currentMsgs, newMsgObj]
+        };
+      });
+      setChatMessages(prev => [...prev, newMsgObj]);
     }
   };
 
@@ -3921,6 +3935,13 @@ export default function App() {
       client.removeChannel(channel);
     };
   }, [showChatModal, chatRecipient, userProfile.id]);
+
+  useEffect(() => {
+    if (!showChatModal || !chatRecipient) return;
+    if (!supabase || !userProfile.loggedIn) {
+      setChatMessages(offlineChats[chatRecipient.id] || []);
+    }
+  }, [showChatModal, chatRecipient, offlineChats, supabase, userProfile.loggedIn]);
 
   // Render shareable sports card on canvas
   useEffect(() => {
@@ -5446,33 +5467,97 @@ ${segments.join('\n')}
       {showChatModal && (
         <div className="login-modal-overlay">
           <div className="chat-modal-card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '10px' }}>
-              <h3 style={{ margin: 0 }}>Mensajes con {chatRecipient?.name || 'Marta Corredora'}</h3>
-              <span style={{ fontSize: '0.8rem', color: '#10b981' }}>● En línea</span>
-            </div>
-            <div className="chat-messages-container">
-              {chatMessages.map((msg, i) => (
-                <div key={i} className={`chat-message-bubble ${msg.sender === 'me' ? 'outgoing' : 'incoming'}`}>
-                  <p style={{ margin: 0 }}>{msg.text}</p>
-                  <span style={{ fontSize: '0.6rem', color: '#94a3b8', display: 'block', textAlign: 'right', marginTop: '2px' }}>{msg.time}</span>
+            {!chatRecipient ? (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '10px' }}>
+                  <h3 style={{ margin: 0 }}>Mensajes Privados</h3>
+                  <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Elige un contacto</span>
                 </div>
-              ))}
-            </div>
-            <div className="chat-input-row">
-              <input 
-                type="text" 
-                placeholder="Escribe tu mensaje..."
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && chatInput.trim()) {
-                    handleSendMessage(chatInput);
-                  }
-                }}
-              />
-              <button onClick={() => handleSendMessage(chatInput)}>Enviar</button>
-            </div>
-            <button className="btn-close-modal" onClick={() => { setShowChatModal(false); setChatRecipient(null); }} style={{ background: 'transparent', border: '1px solid #777', color: '#ccc', padding: '8px', borderRadius: '8px', cursor: 'pointer' }}>Cerrar Chat</button>
+                <div className="chat-messages-container" style={{ maxHeight: '250px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {availableChatContacts.length === 0 ? (
+                    <div style={{ textAlign: 'center', color: '#94a3b8', padding: '20px 0' }}>
+                      No hay otros atletas disponibles.
+                    </div>
+                  ) : (
+                    availableChatContacts.map(contact => (
+                      <div 
+                        key={contact.id} 
+                        onClick={() => setChatRecipient({ id: contact.id, name: contact.name })}
+                        style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: '12px', 
+                          padding: '10px', 
+                          borderRadius: '8px', 
+                          background: 'rgba(255,255,255,0.05)', 
+                          cursor: 'pointer',
+                          transition: 'background 0.2s'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                      >
+                        <div style={{ width: '40px', height: '40px', flexShrink: 0 }}>
+                          {renderAvatar(contact.avatar, 'athlete-avatar')}
+                        </div>
+                        <div style={{ textAlign: 'left' }}>
+                          <div style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>{contact.name}</div>
+                          <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+                            {contact.rankName || 'Atleta de MetroMile'}
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+                <button className="btn-close-modal" onClick={() => setShowChatModal(false)} style={{ background: 'transparent', border: '1px solid #777', color: '#ccc', padding: '8px', borderRadius: '8px', cursor: 'pointer', marginTop: '8px' }}>Cerrar</button>
+              </>
+            ) : (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <button 
+                      onClick={() => setChatRecipient(null)} 
+                      style={{ background: 'transparent', border: 'none', color: '#cbd5e1', cursor: 'pointer', fontSize: '1.2rem', padding: '4px' }}
+                      title="Volver a contactos"
+                    >
+                      ←
+                    </button>
+                    <h3 style={{ margin: 0 }}>{chatRecipient.name}</h3>
+                  </div>
+                  <span style={{ fontSize: '0.8rem', color: '#10b981' }}>● En línea</span>
+                </div>
+                <div className="chat-messages-container">
+                  {chatMessages.length === 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94a3b8', fontSize: '0.8rem', padding: '20px 0' }}>
+                      <span>💬 No hay mensajes en este chat.</span>
+                      <span>¡Envía un mensaje para comenzar la conversación!</span>
+                    </div>
+                  ) : (
+                    chatMessages.map((msg, i) => (
+                      <div key={i} className={`chat-message-bubble ${msg.sender === 'me' ? 'outgoing' : 'incoming'}`}>
+                        <p style={{ margin: 0 }}>{msg.text}</p>
+                        <span style={{ fontSize: '0.6rem', color: '#94a3b8', display: 'block', textAlign: 'right', marginTop: '2px' }}>{msg.time}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+                <div className="chat-input-row">
+                  <input 
+                    type="text" 
+                    placeholder="Escribe tu mensaje..."
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && chatInput.trim()) {
+                        handleSendMessage(chatInput);
+                      }
+                    }}
+                  />
+                  <button onClick={() => handleSendMessage(chatInput)}>Enviar</button>
+                </div>
+                <button className="btn-close-modal" onClick={() => { setShowChatModal(false); setChatRecipient(null); }} style={{ background: 'transparent', border: '1px solid #777', color: '#ccc', padding: '8px', borderRadius: '8px', cursor: 'pointer' }}>Cerrar Chat</button>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -9231,7 +9316,9 @@ ${segments.join('\n')}
         <div className="login-modal-overlay" style={{ zIndex: 999999 }}>
           <div className="login-modal-card" style={{ width: '100%', maxWidth: '420px', padding: '24px', textAlign: 'center' }}>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-              <span style={{ fontSize: '3rem', width: '70px', height: '70px', borderRadius: '50%', background: '#333', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{selectedAthlete.avatar}</span>
+              <div style={{ width: '70px', height: '70px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {renderAvatar(selectedAthlete.avatar, 'athlete-avatar-large')}
+              </div>
               <div>
                 <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
                   {selectedAthlete.name}
@@ -9529,9 +9616,10 @@ ${segments.join('\n')}
             
             <div style={{ maxHeight: '300px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {(() => {
+                const baseList = registeredAthletes.length > 0 ? registeredAthletes : mockAthletesList;
                 const list = showFollowersList.type === 'followers'
-                  ? registeredAthletes.filter(ath => followersIds.includes(ath.id))
-                  : registeredAthletes.filter(ath => followedAthletes[ath.id]);
+                  ? baseList.filter(ath => followersIds.includes(ath.id))
+                  : baseList.filter(ath => followedAthletes[ath.id]);
                 
                 if (list.length === 0) {
                   return (
@@ -9561,7 +9649,9 @@ ${segments.join('\n')}
                         setShowFollowersList({ open: false, type: 'followers' });
                       }}
                     >
-                      <span style={{ fontSize: '1.4rem' }}>{ath.avatar}</span>
+                      <div style={{ width: '32px', height: '32px', flexShrink: 0 }}>
+                        {renderAvatar(ath.avatar, 'athlete-avatar')}
+                      </div>
                       <div>
                         <strong style={{ display: 'block', fontSize: '0.85rem', color: 'white' }}>{ath.name}</strong>
                         <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{ath.bio || 'Atleta MetroMile'}</span>
