@@ -328,9 +328,13 @@ function isErroneousStopName(name: string, stopId: string): boolean {
 }
 
 // Map helper for feed activities
-function getCoordsForActivity(act: UserActivity, busLines: LineRoute[]): [number, number][] {
+function getCoordsForActivity(act: UserActivity, busLines: LineRoute[], activeCityId: string): [number, number][] {
   if (act.coords && act.coords.length > 0) {
     return act.coords;
+  }
+  const actCity = act.cityId || 'burgos';
+  if (actCity !== activeCityId) {
+    return [];
   }
   const matched = busLines.find(l => l.ref === act.lineRef || l.id === act.lineId);
   if (matched && matched.coords && matched.coords.length > 0) {
@@ -614,8 +618,8 @@ const translations = {
     comments: "Comentarios",
     write_comment: "Escribe un comentario...",
     post: "Publicar",
-    like: "Me gusta",
-    liked: "Te gusta",
+    like: "Vagón",
+    liked: "Vagón acoplado",
     share: "Compartir",
     city_not_found: "¿No encuentras tu ciudad?",
     request_city: "Solicitar activación",
@@ -754,8 +758,8 @@ const translations = {
     comments: "Comments",
     write_comment: "Write a comment...",
     post: "Post",
-    like: "Like",
-    liked: "Liked",
+    like: "Wagon",
+    liked: "Wagon coupled",
     share: "Share",
     city_not_found: "Can't find your city?",
     request_city: "Request Activation",
@@ -894,8 +898,8 @@ const translations = {
     comments: "Commentaires",
     write_comment: "Écrire un commentaire...",
     post: "Publier",
-    like: "J'aime",
-    liked: "Aimé",
+    like: "Wagon",
+    liked: "Wagon couplé",
     share: "Partager",
     city_not_found: "Votre ville n'est pas répertoriée ?",
     request_city: "Demander l'activation",
@@ -1034,8 +1038,8 @@ const translations = {
     comments: "Kommentare",
     write_comment: "Schreibe einen Kommentar...",
     post: "Posten",
-    like: "Gefällt mir",
-    liked: "Gefällt mir",
+    like: "Waggon",
+    liked: "Waggon gekoppelt",
     share: "Teilen",
     city_not_found: "Deine Stadt nicht gefunden?",
     request_city: "Aktivierung anfordern",
@@ -1174,8 +1178,8 @@ const translations = {
     comments: "Commenti",
     write_comment: "Scrivi un commento...",
     post: "Pubblica",
-    like: "Mi piace",
-    liked: "Ti piace",
+    like: "Vagone",
+    liked: "Vagone agganciato",
     share: "Condividi",
     city_not_found: "Non trovi la tua città?",
     request_city: "Richiedi attivazione",
@@ -1314,8 +1318,8 @@ const translations = {
     comments: "Komentarze",
     write_comment: "Napisz komentarz...",
     post: "Opublikuj",
-    like: "Lubię to",
-    liked: "Polubiono",
+    like: "Wagon",
+    liked: "Wagon dołączony",
     share: "Udostępnij",
     city_not_found: "Nie możesz znaleźć swojego miasta?",
     request_city: "Poproś o aktywację",
@@ -1454,8 +1458,8 @@ const translations = {
     comments: "Komentáře",
     write_comment: "Napsat komentář...",
     post: "Publikovat",
-    like: "To se mi líbí",
-    liked: "Líbí se",
+    like: "Vagón",
+    liked: "Vagón připojen",
     share: "Sdílet",
     city_not_found: "Nemůžete najít své město?",
     request_city: "Požádat o aktivaci",
@@ -2016,6 +2020,7 @@ export default function App() {
     'marta-corredora': false,
     'diego-cid': false
   });
+  const [favoriteAthletes, setFavoriteAthletes] = useState<Record<string, boolean>>({});
   const [athleteSearchQuery, setAthleteSearchQuery] = useState('');
   const [searchSubTab, setSearchSubTab] = useState<'athletes' | 'challenges'>('athletes');
   const [leaderboardSport, setLeaderboardSport] = useState<'running' | 'cycling'>('running');
@@ -2024,10 +2029,8 @@ export default function App() {
   const [isFetchingSurface, setIsFetchingSurface] = useState(false);
   const [gpxRotationModal, setGpxRotationModal] = useState<{ open: boolean; route: LineRoute | null }>({ open: false, route: null });
 
-  // Favorite athletes state
-  const [favoriteAthletes, setFavoriteAthletes] = useState<Record<string, boolean>>({
-    'marta-corredora': true
-  });
+  const [followersIds, setFollowersIds] = useState<string[]>(['carlos-gomez', 'marta-corredora']);
+  const [showFollowersList, setShowFollowersList] = useState<{ open: boolean; type: 'followers' | 'following' }>({ open: false, type: 'followers' });
 
   // User Settings state
   const [userSettings, setUserSettings] = useState({
@@ -2444,7 +2447,13 @@ export default function App() {
           comments: [
             { id: 'c-1', userName: 'Lucía Sanz', text: '¡Vaya tiempazo en la subida a Gamonal! 💪' }
           ],
-          cityId: 'burgos'
+          cityId: 'burgos',
+          coords: [
+            [42.342, -3.685],
+            [42.343, -3.682],
+            [42.345, -3.680],
+            [42.346, -3.678]
+          ]
         },
         {
           id: 'act-2',
@@ -2461,7 +2470,13 @@ export default function App() {
           type: 'walking',
           likes: 8,
           comments: [],
-          cityId: 'burgos'
+          cityId: 'burgos',
+          coords: [
+            [42.350, -3.690],
+            [42.348, -3.688],
+            [42.346, -3.685],
+            [42.344, -3.683]
+          ]
         }
       ];
       setFeedActivities(defaultFeed);
@@ -2559,13 +2574,57 @@ export default function App() {
     loadCities();
   }, []);
 
-  const ensureRouteDetailsLoaded = async (lines: LineRoute[]) => {
+  const detectCityFromCoords = (lat: number, lon: number): string => {
+    let closestCityId = activeCity;
+    let minDistance = Infinity;
+    citiesList.forEach(city => {
+      const dist = haversineDistance(lat, lon, city.center[0], city.center[1]);
+      if (dist < minDistance && dist < 100.0) {
+        minDistance = dist;
+        closestCityId = city.id;
+      }
+    });
+    return closestCityId;
+  };
+
+  const loadCityMetadata = async (cityId: string): Promise<LineRoute[]> => {
+    try {
+      const response = await fetch(`/data/cities/${cityId}/metadata.json`);
+      if (response.ok) {
+        const meta = await response.json();
+        return meta.map((m: any) => ({
+          id: m.id,
+          name: m.name,
+          ref: m.ref,
+          description: m.description,
+          distanceKm: m.distanceKm,
+          elevationGain: m.elevationGain,
+          elevationLoss: m.elevationLoss,
+          estWalkingSeconds: m.estWalkingSeconds,
+          estRunningSeconds: m.estRunningSeconds,
+          stopsCount: m.stopsCount,
+          coords: [],
+          stops: []
+        }));
+      } else {
+        const legacyResponse = await fetch(`/data/${cityId}.json`);
+        if (legacyResponse.ok) {
+          return await legacyResponse.json();
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load city metadata for', cityId, e);
+    }
+    return [];
+  };
+
+  const ensureRouteDetailsLoadedForCity = async (lines: LineRoute[], cityId: string) => {
     const promises = lines.map(async (line) => {
       if (line.coords && line.coords.length > 0 && line.stops && line.stops.length > 0) {
         return line;
       }
       try {
-        const res = await fetch(`/data/cities/${activeCity}/routes/${line.id}.json`);
+        const res = await fetch(`/data/cities/${cityId}/routes/${line.id}.json`);
         if (res.ok) {
           const detail = await res.json();
           return { ...line, coords: detail.coords, stops: detail.stops };
@@ -2575,10 +2634,65 @@ export default function App() {
       }
       return line;
     });
-    const loaded = await Promise.all(promises);
+    return await Promise.all(promises);
+  };
+
+  const ensureRouteDetailsLoaded = async (lines: LineRoute[]) => {
+    const loaded = await ensureRouteDetailsLoadedForCity(lines, activeCity);
     setLoadedBusLines(loaded);
     return loaded;
   };
+
+  const renderCommentText = (text: string) => {
+    if (!text) return null;
+    const athletes = [...registeredAthletes, ...mockAthletesList, { id: 'me', name: userProfile.name }];
+    const sortedAthletes = [...athletes].sort((a, b) => b.name.length - a.name.length);
+    let parts: (string | React.ReactNode)[] = [text];
+
+    sortedAthletes.forEach(ath => {
+      const mentionText = `@${ath.name}`;
+      const newParts: (string | React.ReactNode)[] = [];
+      parts.forEach(part => {
+        if (typeof part !== 'string') {
+          newParts.push(part);
+          return;
+        }
+        let idx = part.indexOf(mentionText);
+        let currentStr = part;
+        while (idx !== -1) {
+          const before = currentStr.substring(0, idx);
+          const matched = currentStr.substring(idx, idx + mentionText.length);
+          currentStr = currentStr.substring(idx + mentionText.length);
+
+          if (before) newParts.push(before);
+          newParts.push(
+            <span 
+              key={`${ath.id}-${idx}`}
+              onClick={() => {
+                if (ath.id && ath.id !== 'me') {
+                  setSelectedAthleteId(ath.id);
+                }
+              }}
+              style={{ 
+                color: 'var(--brand-orange)', 
+                fontWeight: 'bold', 
+                cursor: ath.id !== 'me' ? 'pointer' : 'default',
+                textDecoration: ath.id !== 'me' ? 'underline' : 'none'
+              }}
+            >
+              {matched}
+            </span>
+          );
+          idx = currentStr.indexOf(mentionText);
+        }
+        if (currentStr) newParts.push(currentStr);
+      });
+      parts = newParts;
+    });
+
+    return <>{parts}</>;
+  };
+
 
   // Dynamic City Route Loader with Stop Name Sanitizer & Legacy Fallback
   useEffect(() => {
@@ -2860,15 +2974,8 @@ export default function App() {
       addDistanceToActiveVirtualJourney(addedKm);
     }
 
-    const updatedFeed = newFeed.map(act => {
-      if (act.cityId === 'burgos' && activeCity !== 'burgos') {
-        return { ...act, cityId: activeCity };
-      }
-      return act;
-    });
-
-    setFeedActivities(updatedFeed);
-    localStorage.setItem(STORAGE_FEED_KEY, JSON.stringify(updatedFeed));
+    setFeedActivities(newFeed);
+    localStorage.setItem(STORAGE_FEED_KEY, JSON.stringify(newFeed));
   };
 
   const saveFavorites = (newFavs: Record<string, boolean>) => {
@@ -3545,7 +3652,7 @@ export default function App() {
       .slice(0, 4);
   }, [registeredAthletes, userProfile.id, followedAthletes]);
 
-  const fetchFeedFromSupabase = async () => {
+  const fetchFeedFromSupabase = async (profilesOverride?: any[]) => {
     if (!supabase) return;
     try {
       const { data: acts, error } = await supabase
@@ -3554,18 +3661,24 @@ export default function App() {
         .order('created_at', { ascending: false });
 
       if (acts) {
-        const { data: allComments } = await supabase.from('comments').select('*, profiles:user_id(name)');
+        const { data: allComments } = await supabase.from('comments').select('*');
         const { data: allLikes } = await supabase.from('likes').select('*');
+
+        const activeProfiles = profilesOverride || registeredAthletes;
 
         const formattedFeed: UserActivity[] = acts.map(act => {
           const actComments = allComments
             ? allComments
                 .filter((c: any) => c.activity_id === act.id)
-                .map((c: any) => ({
-                  id: c.id,
-                  userName: c.profiles?.name || 'Usuario',
-                  text: c.text
-                }))
+                .map((c: any) => {
+                  const p = activeProfiles.find((x: any) => x.id === c.user_id);
+                  const userName = p ? p.name : (c.user_id === userProfile.id ? userProfile.name : 'Atleta');
+                  return {
+                    id: c.id,
+                    userName: userName,
+                    text: c.text
+                  };
+                })
             : [];
 
           const actLikes = allLikes ? allLikes.filter((l: any) => l.activity_id === act.id) : [];
@@ -3705,12 +3818,11 @@ export default function App() {
   useEffect(() => {
     const client = supabase;
     if (client && userProfile.loggedIn) {
-      fetchFeedFromSupabase();
-      
       const fetchProfiles = async () => {
         const { data } = await client.from('profiles').select('*');
+        let mappedList: any[] = [];
         if (data) {
-          const mapped = data.map(p => ({
+          mappedList = data.map(p => ({
             id: p.id,
             name: p.name,
             avatar: p.avatar || '🏃‍♂️',
@@ -3722,27 +3834,43 @@ export default function App() {
             privacy: 'public',
             completedRefs: [] as string[]
           }));
-          setRegisteredAthletes(mapped);
+          setRegisteredAthletes(mappedList);
         }
+        fetchFeedFromSupabase(mappedList);
       };
       fetchProfiles();
 
       const loadFollows = async () => {
-        const { data } = await client
+        const { data: followingData } = await client
           .from('follows')
           .select('following_id')
           .eq('follower_id', userProfile.id);
-        if (data) {
+        if (followingData) {
           const followsObj: Record<string, boolean> = {};
-          data.forEach((row: any) => {
+          followingData.forEach((row: any) => {
             followsObj[row.following_id] = true;
           });
           setFollowedAthletes(followsObj);
+        }
+
+        const { data: followersData } = await client
+          .from('follows')
+          .select('follower_id')
+          .eq('following_id', userProfile.id);
+        if (followersData) {
+          const followersList = followersData.map((row: any) => row.follower_id);
+          setFollowersIds(followersList);
         }
       };
       loadFollows();
     }
   }, [userProfile.loggedIn, userProfile.id]);
+
+  useEffect(() => {
+    if (activeTab === 'feed' && supabase && userProfile.loggedIn) {
+      fetchFeedFromSupabase();
+    }
+  }, [activeTab, userProfile.loggedIn]);
 
   useEffect(() => {
     const client = supabase;
@@ -4162,6 +4290,7 @@ export default function App() {
       } else {
         await supabase.from('likes').delete().eq('user_id', userProfile.id).eq('activity_id', actId);
       }
+      fetchFeedFromSupabase();
     }
   };
 
@@ -4192,6 +4321,7 @@ export default function App() {
         activity_id: actId,
         text: text.trim()
       });
+      fetchFeedFromSupabase();
     }
   };
 
@@ -4458,6 +4588,19 @@ ${gpxSegments}
           }
         }
 
+        // Detect city from coordinates
+        let detectedCityId = activeCity;
+        if (runCoords.length > 0) {
+          detectedCityId = detectCityFromCoords(runCoords[0][0], runCoords[0][1]);
+        }
+
+        // Load lines for detected city
+        let targetLines = fullyLoadedLines;
+        if (detectedCityId !== activeCity) {
+          const metaLines = await loadCityMetadata(detectedCityId);
+          targetLines = await ensureRouteDetailsLoadedForCity(metaLines, detectedCityId);
+        }
+
         const rawType = (run.type || run.sport_type || 'Run').toLowerCase();
         let actType: 'running' | 'walking' | 'cycling' = 'running';
         if (rawType.includes('ride') || rawType.includes('cycling') || rawType.includes('bike')) {
@@ -4470,7 +4613,7 @@ ${gpxSegments}
         let bestMatchScore = 0;
 
         if (runCoords.length > 5) {
-          for (const line of fullyLoadedLines) {
+          for (const line of targetLines) {
             let visitedStopsCount = 0;
             for (const stop of line.stops) {
               const isClose = runCoords.some(([glat, glon]) => {
@@ -4495,7 +4638,7 @@ ${gpxSegments}
 
         if (bestMatchScore >= 70 && bestMatchLine) {
           const sportKey = actType === 'cycling' ? 'cycling' : 'running';
-          updatedCompleted[`${activeCity}_${bestMatchLine.ref}`] = {
+          updatedCompleted[`${detectedCityId}_${bestMatchLine.ref}`] = {
             date: new Date(run.start_date || Date.now()).toLocaleDateString(),
             timeSeconds: duration,
             type: actType,
@@ -4503,7 +4646,7 @@ ${gpxSegments}
             timestamp: new Date(run.start_date || Date.now()).getTime(),
             distanceKm: distanceKm
           };
-          updatedCompleted[`${activeCity}_${bestMatchLine.ref}_${sportKey}`] = {
+          updatedCompleted[`${detectedCityId}_${bestMatchLine.ref}_${sportKey}`] = {
             date: new Date(run.start_date || Date.now()).toLocaleDateString(),
             timeSeconds: duration,
             type: actType,
@@ -4527,7 +4670,7 @@ ${gpxSegments}
             type: actType as any,
             likes: 0,
             comments: [],
-            cityId: activeCity,
+            cityId: detectedCityId,
             coords: runCoords
           });
         } else {
@@ -4547,7 +4690,7 @@ ${gpxSegments}
             type: actType as any,
             likes: 0,
             comments: [],
-            cityId: activeCity,
+            cityId: detectedCityId,
             coords: runCoords
           });
         }
@@ -4603,14 +4746,25 @@ ${gpxSegments}
       }
     }
 
-    // Automatically match against all routes in active city
+    // Automatically match against all routes in the detected city
+    let detectedCityId = activeCity;
+    if (gpxCoords.length > 0) {
+      detectedCityId = detectCityFromCoords(gpxCoords[0][0], gpxCoords[0][1]);
+    }
+
+    let cityLines = loadedBusLines;
+    if (detectedCityId !== activeCity) {
+      const metaLines = await loadCityMetadata(detectedCityId);
+      cityLines = await ensureRouteDetailsLoadedForCity(metaLines, detectedCityId);
+    } else {
+      cityLines = await ensureRouteDetailsLoaded(loadedBusLines);
+    }
+
     let bestMatchLine: LineRoute | null = null;
     let bestMatchPercent = 0;
     let bestVisitedStops = 0;
 
-    const fullyLoadedLines = await ensureRouteDetailsLoaded(loadedBusLines);
-
-    for (const line of fullyLoadedLines) {
+    for (const line of cityLines) {
       let visitedStopsCount = 0;
       for (const stop of line.stops) {
         const isClose = gpxCoords.some(([glat, glon]) => {
@@ -4639,7 +4793,7 @@ ${gpxSegments}
       const sportKey = uploadActivityType === 'cycling' ? 'cycling' : 'running';
       const newCompleted = {
         ...completed,
-        [`${activeCity}_${detectedLine.ref}`]: {
+        [`${detectedCityId}_${detectedLine.ref}`]: {
           date: new Date().toLocaleDateString(),
           timeSeconds: timeSeconds,
           type: uploadActivityType,
@@ -4647,7 +4801,7 @@ ${gpxSegments}
           timestamp: Date.now(),
           distanceKm: distanceKm
         },
-        [`${activeCity}_${detectedLine.ref}_${sportKey}`]: {
+        [`${detectedCityId}_${detectedLine.ref}_${sportKey}`]: {
           date: new Date().toLocaleDateString(),
           timeSeconds: timeSeconds,
           type: uploadActivityType,
@@ -4673,7 +4827,7 @@ ${gpxSegments}
         type: uploadActivityType,
         likes: 0,
         comments: [],
-        cityId: activeCity,
+        cityId: detectedCityId,
         coords: gpxCoords
       };
       
@@ -4704,7 +4858,7 @@ ${gpxSegments}
         type: uploadActivityType,
         likes: 0,
         comments: [],
-        cityId: activeCity,
+        cityId: detectedCityId,
         coords: gpxCoords
       };
 
@@ -4753,8 +4907,19 @@ ${segments.join('\n')}
     verifyUploadedGpx(gpxString);
   };
 
-  // mockAthletesList is defined globally
-  const selectedAthlete = activeAthletesList.find(a => a.id === selectedAthleteId);
+  const selectedAthlete = useMemo(() => {
+    if (!selectedAthleteId) return null;
+    let found = registeredAthletes.find(a => a.id === selectedAthleteId);
+    if (!found) {
+      found = mockAthletesList.find(a => a.id === selectedAthleteId);
+    }
+    if (!found) {
+      found = activeAthletesList.find(a => a.id === selectedAthleteId);
+    }
+    return found;
+  }, [selectedAthleteId, registeredAthletes, activeAthletesList]);
+
+
 
   if (!onboardingCompleted) {
     return (
@@ -4794,7 +4959,7 @@ ${segments.join('\n')}
         }}>
           {/* Logo */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '24px' }}>
-            <span style={{ fontSize: '2.4rem', background: 'linear-gradient(135deg, #ff7e40, #fc5200)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>⚡</span>
+            <img src="/icon2.png" alt="MetroMile Logo" style={{ width: '48px', height: '48px', borderRadius: '12px', objectFit: 'cover' }} />
             <h1 style={{ fontSize: '2.2rem', fontWeight: '900', letterSpacing: '-0.02em', margin: 0 }}>MetroMile</h1>
           </div>
 
@@ -4968,7 +5133,7 @@ ${segments.join('\n')}
       <header className="topbar" style={{ padding: '12px 20px', display: 'flex', flexDirection: 'column', gap: '12px', background: 'var(--brand-dark)' }}>
         <div className="header-content" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', gap: '16px' }}>
           <div className="logo-flex" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => setActiveTab('feed')}>
-            <span className="logo-icon" style={{ fontSize: '1.8rem', background: 'linear-gradient(135deg, #ff7e40, var(--brand-orange))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>⚡</span>
+            <img src="/icon2.png" alt="MetroMile Logo" style={{ width: '32px', height: '32px', borderRadius: '8px', objectFit: 'cover' }} />
             <h1 style={{ fontSize: '1.6rem', fontWeight: '900', letterSpacing: '-0.02em', margin: 0, color: 'white' }}>MetroMile</h1>
           </div>
           
@@ -5721,20 +5886,31 @@ ${segments.join('\n')}
                 </div>
 
                 {visibleFeedActivities.map((act) => {
-                  const athleteIdMap: Record<string, string> = {
-                    'Carlos Gómez': 'carlos-gomez',
-                    'Sofía Martínez': 'sofia-martinez',
-                    'Marta Corredora': 'marta-corredora',
-                    'Diego Cid': 'diego-cid'
-                  };
-                  const aid = athleteIdMap[act.userName] || '';
+                  let aid = act.userId || '';
+                  if (!aid) {
+                    const athleteIdMap: Record<string, string> = {
+                      'Carlos Gómez': 'carlos-gomez',
+                      'Sofía Martínez': 'sofia-martinez',
+                      'Marta Corredora': 'marta-corredora',
+                      'Diego Cid': 'diego-cid'
+                    };
+                    aid = athleteIdMap[act.userName] || '';
+                  }
                   const isFav = aid ? !!favoriteAthletes[aid] : false;
 
                   return (
                     <article key={act.id} className="activity-card">
                       <div className="activity-header">
                         <div className="act-user">
-                          <div className="act-avatar">{renderAvatar(act.userAvatar, 'act-avatar')}</div>
+                          <div 
+                            className="act-avatar" 
+                            style={{ cursor: 'pointer' }}
+                            onClick={() => {
+                              if (aid) setSelectedAthleteId(aid);
+                            }}
+                          >
+                            {renderAvatar(act.userAvatar, 'act-avatar')}
+                          </div>
                           <div>
                             <h4 
                               style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
@@ -5844,7 +6020,7 @@ ${segments.join('\n')}
                         {/* Read-only Mini Map of the route (Clickable to explore) */}
                         <MiniFeedMap 
                           activityId={act.id} 
-                          coords={getCoordsForActivity(act, loadedBusLines)} 
+                          coords={getCoordsForActivity(act, loadedBusLines, activeCity)} 
                           color={act.lineRef === 'LIBRE' ? '#0284c7' : '#fc5200'} 
                           onClick={() => {
                             if (act.coords && act.coords.length > 0) {
@@ -5874,9 +6050,8 @@ ${segments.join('\n')}
                           <button 
                             className={`btn-like ${act.likedByMe ? 'liked' : ''}`}
                             onClick={() => handleLikeActivity(act.id)}
-                            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                           >
-                            👍 {act.likedByMe ? t('liked') : t('like')} ({act.likes})
+                            🚇 {act.likedByMe ? t('liked') : t('like')} ({act.likes})
                           </button>
                           <span className="comments-count" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem', color: '#94a3b8' }}>
                             💬 {act.comments.length} {t('comments')}
@@ -5907,27 +6082,121 @@ ${segments.join('\n')}
                         </div>
 
                         {act.comments.length > 0 && (
-                          <div className="feed-comments">
+                          <div className="feed-comments" style={{ display: 'flex', flexDirection: 'column', gap: '6px', background: 'rgba(0,0,0,0.2)', padding: '10px', borderRadius: '8px', marginTop: '10px' }}>
                             {act.comments.map((comment) => (
-                              <div key={comment.id} className="comment-item">
-                                <strong>{comment.userName}: </strong>
-                                <span>{comment.text}</span>
+                              <div key={comment.id} className="comment-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', borderBottom: '1px solid rgba(255,255,255,0.03)', paddingBottom: '4px' }}>
+                                <div>
+                                  <strong 
+                                    style={{ color: '#cbd5e1', cursor: 'pointer' }}
+                                    onClick={() => {
+                                      const p = registeredAthletes.find(x => x.name === comment.userName) || mockAthletesList.find(x => x.name === comment.userName);
+                                      if (p) setSelectedAthleteId(p.id);
+                                    }}
+                                  >
+                                    {comment.userName}:{' '}
+                                  </strong>
+                                  <span style={{ color: '#f8fafc' }}>{renderCommentText(comment.text)}</span>
+                                </div>
+                                <button
+                                  onClick={() => {
+                                    const currentText = commentInputs[act.id] || '';
+                                    setCommentInputs({
+                                      ...commentInputs,
+                                      [act.id]: `@${comment.userName} `
+                                    });
+                                    const inputEl = document.getElementById(`comment-input-${act.id}`);
+                                    if (inputEl) inputEl.focus();
+                                  }}
+                                  style={{
+                                    background: 'transparent',
+                                    border: 'none',
+                                    color: 'var(--brand-orange)',
+                                    fontSize: '0.7rem',
+                                    cursor: 'pointer',
+                                    fontWeight: 'bold'
+                                  }}
+                                >
+                                  {userSettings.lang === 'es' ? 'Responder' : 'Reply'}
+                                </button>
                               </div>
                             ))}
                           </div>
                         )}
 
-                        <div className="comment-input-box">
-                          <input 
-                            type="text" 
-                            placeholder="Escribe un comentario deportivo..."
-                            value={commentInputs[act.id] || ''}
-                            onChange={(e) => setCommentInputs({ ...commentInputs, [act.id]: e.target.value })}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') handlePostComment(act.id);
-                            }}
-                          />
-                          <button onClick={() => handlePostComment(act.id)}>Enviar</button>
+                        <div className="comment-input-box" style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '10px' }}>
+                          {registeredAthletes.filter(ath => ath.id !== userProfile.id && (followedAthletes[ath.id] || followersIds.includes(ath.id))).length > 0 && (
+                            <div className="mention-suggestions" style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+                              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                                {userSettings.lang === 'es' ? 'Mencionar a:' : 'Mention:'}
+                              </span>
+                              {registeredAthletes
+                                .filter(ath => ath.id !== userProfile.id && (followedAthletes[ath.id] || followersIds.includes(ath.id)))
+                                .slice(0, 5)
+                                .map(ath => (
+                                  <button
+                                    key={ath.id}
+                                    onClick={() => {
+                                      const currentText = commentInputs[act.id] || '';
+                                      setCommentInputs({
+                                        ...commentInputs,
+                                        [act.id]: currentText + `@${ath.name} `
+                                      });
+                                      const inputEl = document.getElementById(`comment-input-${act.id}`);
+                                      if (inputEl) inputEl.focus();
+                                    }}
+                                    style={{
+                                      background: 'rgba(255,255,255,0.06)',
+                                      border: '1px solid var(--border-color)',
+                                      borderRadius: '12px',
+                                      padding: '2px 8px',
+                                      fontSize: '0.7rem',
+                                      color: '#cbd5e1',
+                                      cursor: 'pointer'
+                                    }}
+                                  >
+                                    @{ath.name.split(' ')[0]}
+                                  </button>
+                                ))
+                              }
+                            </div>
+                          )}
+                          
+                          <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
+                            <input 
+                              id={`comment-input-${act.id}`}
+                              type="text" 
+                              placeholder={userSettings.lang === 'es' ? "Escribe un comentario deportivo..." : "Write a comment..."}
+                              value={commentInputs[act.id] || ''}
+                              onChange={(e) => setCommentInputs({ ...commentInputs, [act.id]: e.target.value })}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handlePostComment(act.id);
+                              }}
+                              style={{
+                                flex: 1,
+                                padding: '8px 12px',
+                                borderRadius: '8px',
+                                border: '1px solid var(--border-color)',
+                                background: 'var(--brand-dark-soft)',
+                                color: 'white',
+                                fontSize: '0.85rem'
+                              }}
+                            />
+                            <button 
+                              onClick={() => handlePostComment(act.id)}
+                              style={{
+                                background: 'var(--brand-orange)',
+                                color: 'white',
+                                border: 'none',
+                                padding: '8px 16px',
+                                borderRadius: '8px',
+                                fontWeight: 'bold',
+                                fontSize: '0.85rem',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              {userSettings.lang === 'es' ? 'Enviar' : 'Send'}
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </article>
@@ -5958,8 +6227,8 @@ ${segments.join('\n')}
                         padding: '10px 12px',
                         borderRadius: '8px',
                         border: '1px solid var(--border-color)',
-                        background: 'white',
-                        color: 'var(--brand-dark)',
+                        background: 'var(--brand-dark-soft)',
+                        color: 'white',
                         fontSize: '0.85rem',
                         fontWeight: 'bold',
                         outline: 'none'
@@ -5976,8 +6245,8 @@ ${segments.join('\n')}
                         fontSize: '0.75rem',
                         borderRadius: '8px',
                         border: 'none',
-                        background: filterType === 'all' ? 'var(--brand-orange)' : 'rgba(0,0,0,0.05)',
-                        color: filterType === 'all' ? 'white' : 'var(--brand-dark)',
+                        background: filterType === 'all' ? 'var(--brand-orange)' : 'rgba(255,255,255,0.08)',
+                        color: filterType === 'all' ? 'white' : '#ccc',
                         fontWeight: 'bold',
                         cursor: 'pointer'
                       }}
@@ -5992,8 +6261,8 @@ ${segments.join('\n')}
                         fontSize: '0.75rem',
                         borderRadius: '8px',
                         border: 'none',
-                        background: filterType === 'completed' ? 'var(--brand-orange)' : 'rgba(0,0,0,0.05)',
-                        color: filterType === 'completed' ? 'white' : 'var(--brand-dark)',
+                        background: filterType === 'completed' ? 'var(--brand-orange)' : 'rgba(255,255,255,0.08)',
+                        color: filterType === 'completed' ? 'white' : '#ccc',
                         fontWeight: 'bold',
                         cursor: 'pointer'
                       }}
@@ -6008,8 +6277,8 @@ ${segments.join('\n')}
                         fontSize: '0.75rem',
                         borderRadius: '8px',
                         border: 'none',
-                        background: filterType === 'pending' ? 'var(--brand-orange)' : 'rgba(0,0,0,0.05)',
-                        color: filterType === 'pending' ? 'white' : 'var(--brand-dark)',
+                        background: filterType === 'pending' ? 'var(--brand-orange)' : 'rgba(255,255,255,0.08)',
+                        color: filterType === 'pending' ? 'white' : '#ccc',
                         fontWeight: 'bold',
                         cursor: 'pointer'
                       }}
@@ -6027,8 +6296,8 @@ ${segments.join('\n')}
                         padding: '8px 12px',
                         borderRadius: '8px',
                         border: '1px solid var(--border-color)',
-                        background: 'white',
-                        color: 'var(--brand-dark)',
+                        background: 'var(--brand-dark-soft)',
+                        color: 'white',
                         fontSize: '0.85rem',
                         fontWeight: 'bold',
                         cursor: 'pointer',
@@ -6060,10 +6329,10 @@ ${segments.join('\n')}
                       padding: '12px',
                       borderRadius: '10px',
                       border: '1px solid var(--border-color)',
-                      background: 'white',
+                      background: 'var(--brand-dark-soft)',
                       fontSize: '0.9rem',
                       fontWeight: 'bold',
-                      color: 'var(--brand-dark)',
+                      color: 'white',
                       outline: 'none',
                       cursor: 'pointer'
                     }}
@@ -6634,6 +6903,21 @@ ${segments.join('\n')}
                     </div>
                     <p className="city-label" style={{ color: '#cbd5e1' }}>📍 {userProfile.location || 'Burgos, España'}</p>
                     <p className="bio" style={{ fontStyle: 'italic', margin: '4px 0 0 0', fontSize: '0.85rem' }}>{userProfile.bio || 'Sin biografía añadida.'}</p>
+                    
+                    <div style={{ display: 'flex', gap: '16px', marginTop: '10px', fontSize: '0.8rem', fontWeight: 'bold' }}>
+                      <span 
+                        style={{ color: 'var(--brand-orange)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                        onClick={() => setShowFollowersList({ open: true, type: 'followers' })}
+                      >
+                        👥 {followersIds.length} {userSettings.lang === 'es' ? 'Seguidores' : 'Followers'}
+                      </span>
+                      <span 
+                        style={{ color: 'var(--brand-orange)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                        onClick={() => setShowFollowersList({ open: true, type: 'following' })}
+                      >
+                        👉 {Object.keys(followedAthletes).filter(id => followedAthletes[id]).length} {userSettings.lang === 'es' ? 'Seguidos' : 'Following'}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -9222,6 +9506,100 @@ ${segments.join('\n')}
           }}
         >
           🚀 ¡Nueva versión disponible! Toca para actualizar
+        </div>
+      )}
+
+      {/* Followers / Following List Modal */}
+      {showFollowersList.open && (
+        <div className="login-modal-overlay" style={{ zIndex: 999999 }}>
+          <div className="login-modal-card" style={{ width: '100%', maxWidth: '400px', padding: '24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ margin: 0, fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                👥 {showFollowersList.type === 'followers' 
+                  ? (userSettings.lang === 'es' ? 'Mis Seguidores' : 'My Followers')
+                  : (userSettings.lang === 'es' ? 'Atletas que Sigo' : 'Athletes I Follow')}
+              </h3>
+              <button 
+                onClick={() => setShowFollowersList({ open: false, type: 'followers' })}
+                style={{ background: 'transparent', border: 'none', color: '#cbd5e1', fontSize: '1.2rem', cursor: 'pointer' }}
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div style={{ maxHeight: '300px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {(() => {
+                const list = showFollowersList.type === 'followers'
+                  ? registeredAthletes.filter(ath => followersIds.includes(ath.id))
+                  : registeredAthletes.filter(ath => followedAthletes[ath.id]);
+                
+                if (list.length === 0) {
+                  return (
+                    <p style={{ textAlign: 'center', fontSize: '0.85rem', color: 'var(--text-muted)', margin: '20px 0' }}>
+                      {userSettings.lang === 'es' ? 'Ningún atleta en esta lista.' : 'No athletes in this list.'}
+                    </p>
+                  );
+                }
+                
+                return list.map(ath => (
+                  <div 
+                    key={ath.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '10px 12px',
+                      background: 'rgba(255,255,255,0.03)',
+                      borderRadius: '10px',
+                      border: '1px solid var(--border-color)'
+                    }}
+                  >
+                    <div 
+                      style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}
+                      onClick={() => {
+                        setSelectedAthleteId(ath.id);
+                        setShowFollowersList({ open: false, type: 'followers' });
+                      }}
+                    >
+                      <span style={{ fontSize: '1.4rem' }}>{ath.avatar}</span>
+                      <div>
+                        <strong style={{ display: 'block', fontSize: '0.85rem', color: 'white' }}>{ath.name}</strong>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{ath.bio || 'Atleta MetroMile'}</span>
+                      </div>
+                    </div>
+                    
+                    <button
+                      onClick={() => {
+                        handleToggleFollow(ath.id, ath.name);
+                      }}
+                      style={{
+                        padding: '6px 12px',
+                        fontSize: '0.75rem',
+                        borderRadius: '6px',
+                        border: 'none',
+                        background: followedAthletes[ath.id] ? '#cbd5e1' : 'var(--brand-orange)',
+                        color: followedAthletes[ath.id] ? 'var(--brand-dark)' : 'white',
+                        fontWeight: 'bold',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {followedAthletes[ath.id] ? (userSettings.lang === 'es' ? 'Siguiendo' : 'Following') : (userSettings.lang === 'es' ? 'Seguir' : 'Follow')}
+                    </button>
+                  </div>
+                ));
+              })()}
+            </div>
+            
+            <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end' }}>
+              <button 
+                className="btn-close-modal"
+                onClick={() => setShowFollowersList({ open: false, type: 'followers' })}
+                style={{ width: '100%', padding: '10px', borderRadius: '8px', background: 'var(--brand-light)', color: 'white', border: '1px solid var(--border-color)', fontWeight: 'bold', cursor: 'pointer' }}
+              >
+                {userSettings.lang === 'es' ? 'Cerrar' : 'Close'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
