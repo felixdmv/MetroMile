@@ -3346,38 +3346,10 @@ export default function App() {
 
   const [surfaceCoords, setSurfaceCoords] = useState<[number, number, number][] | null>(null);
 
-  // Surface routing for subterranean routes using OSRM
+  // Pre-calculated surface routing is now stored directly in route.coords
   useEffect(() => {
-    setSurfaceCoords(null); // Reset when line changes
-    
-    if (!selectedLine || selectedLine.stops.length < 2) return;
-    
-    const cityObj = citiesList.find(c => c.id === activeCity);
-    const isMetro = cityObj?.transports.includes('metro');
-    
-    if (isMetro) {
-      const loadSurface = async () => {
-        setIsFetchingSurface(true);
-        try {
-          const coordsString = selectedLine.stops.map(s => `${s.lon},${s.lat}`).join(';');
-          const url = `https://router.project-osrm.org/route/v1/foot/${coordsString}?overview=full&geometries=geojson`;
-          const res = await fetch(url);
-          if (res.ok) {
-            const data = await res.json();
-            if (data.routes && data.routes[0] && data.routes[0].geometry) {
-              const geojsonCoords = data.routes[0].geometry.coordinates; // array of [lon, lat]
-              setSurfaceCoords(geojsonCoords.map((c: [number, number]) => [c[1], c[0], 0]));
-            }
-          }
-        } catch (e) {
-          console.error("Error aligning route to surface via OSRM:", e);
-        } finally {
-          setIsFetchingSurface(false);
-        }
-      };
-      loadSurface();
-    }
-  }, [selectedLine, activeCity, citiesList]);
+    setSurfaceCoords(null);
+  }, [selectedLine]);
 
   const mapCenter = useMemo<[number, number]>(() => {
     if (activeMapActivity && activeMapActivity.coords.length > 0) {
@@ -4223,32 +4195,7 @@ export default function App() {
       haversineDistance(firstStop.lat, firstStop.lon, lastStop.lat, lastStop.lon) <= 0.15
     );
 
-    // Determine if we need to fetch pedestrian surface coords for subterranean lines
-    const cityObj = citiesList.find(c => c.id === activeCity);
-    const isMetro = cityObj?.transports.includes('metro');
-    
-    let coordsToUse = route.coords;
-    if (isMetro && route.stops.length >= 2) {
-      if (selectedLine && selectedLine.id === route.id && surfaceCoords && surfaceCoords.length > 0) {
-        coordsToUse = surfaceCoords;
-      } else {
-        addNotification('GPX', 'Generando trazado de superficie para peatones...', 'info');
-        try {
-          const coordsString = route.stops.map(s => `${s.lon},${s.lat}`).join(';');
-          const url = `https://router.project-osrm.org/route/v1/foot/${coordsString}?overview=full&geometries=geojson`;
-          const res = await fetch(url);
-          if (res.ok) {
-            const data = await res.json();
-            if (data.routes && data.routes[0] && data.routes[0].geometry) {
-              const geojsonCoords = data.routes[0].geometry.coordinates; // array of [lon, lat]
-              coordsToUse = geojsonCoords.map((c: [number, number]) => [c[1], c[0], 0]);
-            }
-          }
-        } catch (e) {
-          console.error("Error fetching surface coords for GPX download:", e);
-        }
-      }
-    }
+    const coordsToUse = route.coords;
 
     if (isCircular) {
       const tempRouteWithCoords = { ...route, coords: coordsToUse };
