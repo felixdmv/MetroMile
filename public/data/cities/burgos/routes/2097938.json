@@ -3,11 +3,11 @@
   "name": "L01: Gamonal → Avda. Arlanzón",
   "ref": "L01",
   "description": "Ruta real de bus urbano gestionada por Servicio Municipalizado de Movilidad y Transportes.",
-  "distanceKm": 3.39,
+  "distanceKm": 3.32,
   "elevationGain": 0.0,
   "elevationLoss": 0.0,
-  "estWalkingSeconds": 2710,
-  "estRunningSeconds": 1108,
+  "estWalkingSeconds": 2652,
+  "estRunningSeconds": 1085,
   "stopsCount": 22,
   "coords": [
     [
@@ -703,31 +703,6 @@
     [
       42.341229,
       -3.698491,
-      800.0
-    ],
-    [
-      42.341218,
-      -3.698539,
-      800.0
-    ],
-    [
-      42.341202,
-      -3.698608,
-      800.0
-    ],
-    [
-      42.341177,
-      -3.698715,
-      800.0
-    ],
-    [
-      42.341,
-      -3.699401,
-      800.0
-    ],
-    [
-      42.340585,
-      -3.699283,
       800.0
     ],
     [

@@ -4,21 +4,16 @@
     "name": "LRT Line 2: Recto to Antipolo",
     "ref": "2",
     "description": "Ruta real de metro urbano gestionada por Light Rail Transit Authority.",
-    "distanceKm": 16.66,
+    "distanceKm": 16.62,
     "elevationGain": 0.0,
     "elevationLoss": 0.0,
-    "estWalkingSeconds": 13329,
-    "estRunningSeconds": 5452,
+    "estWalkingSeconds": 13295,
+    "estRunningSeconds": 5439,
     "stopsCount": 13,
     "coords": [
       [
         14.603481,
         120.983987,
-        800.0
-      ],
-      [
-        14.60332,
-        120.984398,
         800.0
       ],
       [
@@ -209,51 +204,6 @@
       [
         14.601221,
         120.992112,
-        800.0
-      ],
-      [
-        14.601289,
-        120.99225,
-        800.0
-      ],
-      [
-        14.601381,
-        120.992413,
-        800.0
-      ],
-      [
-        14.601437,
-        120.992521,
-        800.0
-      ],
-      [
-        14.601457,
-        120.992561,
-        800.0
-      ],
-      [
-        14.60149,
-        120.992634,
-        800.0
-      ],
-      [
-        14.601507,
-        120.992691,
-        800.0
-      ],
-      [
-        14.601523,
-        120.992752,
-        800.0
-      ],
-      [
-        14.601269,
-        120.992722,
-        800.0
-      ],
-      [
-        14.601248,
-        120.992729,
         800.0
       ],
       [

@@ -3,11 +3,11 @@
   "name": "L08: Villafría → Cótar → Gran Teatro",
   "ref": "L08",
   "description": "Ruta real de bus urbano gestionada por Servicio Municipalizado de Movilidad y Transportes.",
-  "distanceKm": 13.64,
+  "distanceKm": 13.62,
   "elevationGain": 0.0,
   "elevationLoss": 0.0,
-  "estWalkingSeconds": 10909,
-  "estRunningSeconds": 4463,
+  "estWalkingSeconds": 10897,
+  "estRunningSeconds": 4457,
   "stopsCount": 42,
   "coords": [
     [
@@ -88,26 +88,6 @@
     [
       42.366557,
       -3.614429,
-      800.0
-    ],
-    [
-      42.366815,
-      -3.614527,
-      800.0
-    ],
-    [
-      42.366848,
-      -3.61454,
-      800.0
-    ],
-    [
-      42.366887,
-      -3.614558,
-      800.0
-    ],
-    [
-      42.367005,
-      -3.614576,
       800.0
     ],
     [
@@ -2208,21 +2188,6 @@
     [
       42.3617,
       -3.652865,
-      800.0
-    ],
-    [
-      42.361675,
-      -3.653029,
-      800.0
-    ],
-    [
-      42.361086,
-      -3.652729,
-      800.0
-    ],
-    [
-      42.360863,
-      -3.652615,
       800.0
     ],
     [

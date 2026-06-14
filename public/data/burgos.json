@@ -4,11 +4,11 @@
     "name": "L01: Gamonal → Avda. Arlanzón",
     "ref": "L01",
     "description": "Ruta real de bus urbano gestionada por Servicio Municipalizado de Movilidad y Transportes.",
-    "distanceKm": 3.39,
+    "distanceKm": 3.32,
     "elevationGain": 0.0,
     "elevationLoss": 0.0,
-    "estWalkingSeconds": 2710,
-    "estRunningSeconds": 1108,
+    "estWalkingSeconds": 2652,
+    "estRunningSeconds": 1085,
     "stopsCount": 22,
     "coords": [
       [
@@ -704,31 +704,6 @@
       [
         42.341229,
         -3.698491,
-        800.0
-      ],
-      [
-        42.341218,
-        -3.698539,
-        800.0
-      ],
-      [
-        42.341202,
-        -3.698608,
-        800.0
-      ],
-      [
-        42.341177,
-        -3.698715,
-        800.0
-      ],
-      [
-        42.341,
-        -3.699401,
-        800.0
-      ],
-      [
-        42.340585,
-        -3.699283,
         800.0
       ],
       [
@@ -1695,11 +1670,11 @@
     "name": "L06: Ismael García Rámila → Plaza España",
     "ref": "L06",
     "description": "Ruta real de bus urbano gestionada por Servicio Municipalizado de Movilidad y Transportes.",
-    "distanceKm": 3.52,
+    "distanceKm": 3.5,
     "elevationGain": 0.0,
     "elevationLoss": 0.0,
-    "estWalkingSeconds": 2814,
-    "estRunningSeconds": 1151,
+    "estWalkingSeconds": 2800,
+    "estRunningSeconds": 1145,
     "stopsCount": 22,
     "coords": [
       [
@@ -1740,31 +1715,6 @@
       [
         42.351243,
         -3.663947,
-        800.0
-      ],
-      [
-        42.351304,
-        -3.663966,
-        800.0
-      ],
-      [
-        42.351359,
-        -3.66397,
-        800.0
-      ],
-      [
-        42.351529,
-        -3.664496,
-        800.0
-      ],
-      [
-        42.35147,
-        -3.664551,
-        800.0
-      ],
-      [
-        42.351419,
-        -3.664616,
         800.0
       ],
       [
@@ -2965,11 +2915,11 @@
     "name": "L08: Villafría → Cótar → Gran Teatro",
     "ref": "L08",
     "description": "Ruta real de bus urbano gestionada por Servicio Municipalizado de Movilidad y Transportes.",
-    "distanceKm": 13.64,
+    "distanceKm": 13.62,
     "elevationGain": 0.0,
     "elevationLoss": 0.0,
-    "estWalkingSeconds": 10909,
-    "estRunningSeconds": 4463,
+    "estWalkingSeconds": 10897,
+    "estRunningSeconds": 4457,
     "stopsCount": 42,
     "coords": [
       [
@@ -3050,26 +3000,6 @@
       [
         42.366557,
         -3.614429,
-        800.0
-      ],
-      [
-        42.366815,
-        -3.614527,
-        800.0
-      ],
-      [
-        42.366848,
-        -3.61454,
-        800.0
-      ],
-      [
-        42.366887,
-        -3.614558,
-        800.0
-      ],
-      [
-        42.367005,
-        -3.614576,
         800.0
       ],
       [
@@ -5173,21 +5103,6 @@
         800.0
       ],
       [
-        42.361675,
-        -3.653029,
-        800.0
-      ],
-      [
-        42.361086,
-        -3.652729,
-        800.0
-      ],
-      [
-        42.360863,
-        -3.652615,
-        800.0
-      ],
-      [
         42.360835,
         -3.652601,
         800.0
@@ -6485,11 +6400,11 @@
     "name": "L06: Plaza España → Ismael García Rámila",
     "ref": "L06",
     "description": "Ruta real de bus urbano gestionada por Servicio Municipalizado de Movilidad y Transportes.",
-    "distanceKm": 3.13,
+    "distanceKm": 3.08,
     "elevationGain": 0.0,
     "elevationLoss": 0.0,
-    "estWalkingSeconds": 2507,
-    "estRunningSeconds": 1025,
+    "estWalkingSeconds": 2464,
+    "estRunningSeconds": 1008,
     "stopsCount": 22,
     "coords": [
       [
@@ -7465,126 +7380,6 @@
       [
         42.350293,
         -3.664096,
-        800.0
-      ],
-      [
-        42.350302,
-        -3.664048,
-        800.0
-      ],
-      [
-        42.350291,
-        -3.663994,
-        800.0
-      ],
-      [
-        42.350279,
-        -3.663947,
-        800.0
-      ],
-      [
-        42.350246,
-        -3.663883,
-        800.0
-      ],
-      [
-        42.350206,
-        -3.663841,
-        800.0
-      ],
-      [
-        42.350169,
-        -3.663779,
-        800.0
-      ],
-      [
-        42.350147,
-        -3.663718,
-        800.0
-      ],
-      [
-        42.350136,
-        -3.663658,
-        800.0
-      ],
-      [
-        42.350133,
-        -3.663597,
-        800.0
-      ],
-      [
-        42.350139,
-        -3.663537,
-        800.0
-      ],
-      [
-        42.350149,
-        -3.663493,
-        800.0
-      ],
-      [
-        42.350164,
-        -3.663441,
-        800.0
-      ],
-      [
-        42.350187,
-        -3.663398,
-        800.0
-      ],
-      [
-        42.350209,
-        -3.663366,
-        800.0
-      ],
-      [
-        42.35024,
-        -3.663341,
-        800.0
-      ],
-      [
-        42.35028,
-        -3.663312,
-        800.0
-      ],
-      [
-        42.350339,
-        -3.663291,
-        800.0
-      ],
-      [
-        42.350362,
-        -3.663289,
-        800.0
-      ],
-      [
-        42.350398,
-        -3.663291,
-        800.0
-      ],
-      [
-        42.350446,
-        -3.663306,
-        800.0
-      ],
-      [
-        42.350486,
-        -3.66333,
-        800.0
-      ],
-      [
-        42.350503,
-        -3.663344,
-        800.0
-      ],
-      [
-        42.350534,
-        -3.663378,
-        800.0
-      ],
-      [
-        42.350557,
-        -3.663413,
         800.0
       ],
       [

@@ -6,38 +6,13 @@
   "distanceKm": 2.61,
   "elevationGain": 0.0,
   "elevationLoss": 0.0,
-  "estWalkingSeconds": 2085,
-  "estRunningSeconds": 853,
+  "estWalkingSeconds": 2084,
+  "estRunningSeconds": 852,
   "stopsCount": 2,
   "coords": [
     [
       51.502127,
       -0.111818,
-      800.0
-    ],
-    [
-      51.502024,
-      -0.111155,
-      800.0
-    ],
-    [
-      51.50199,
-      -0.111017,
-      800.0
-    ],
-    [
-      51.501966,
-      -0.11095,
-      800.0
-    ],
-    [
-      51.501905,
-      -0.110789,
-      800.0
-    ],
-    [
-      51.501861,
-      -0.110663,
       800.0
     ],
     [
